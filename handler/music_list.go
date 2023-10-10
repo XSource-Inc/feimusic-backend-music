@@ -175,9 +175,20 @@ func (ml *FeiMusicMusicList)GetMusicFromList(ctx context.Context, in *music.GetM
 
 func (ml *FeiMusicMusicList)AddMusicToList(ctx context.Context, in *music.AddMusicToListRequest) (*music.AddMusicToListResponse, error){
 	// 检查入参中的歌单是否存在，进一步考虑是不是要增加状态字段（软删除），增加的话这里还要判断状态
-	
+	err := db.JudgeMusicListWithListID(ctx, in.ListID)
+	if err != nil{
+		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListID, in.MusicID, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
+		return resp, nil //TODO:这里的错误处理看不出具体的错误是系统错误还是业务错误，也看不出错误的环节，如何改进？
+	}
 
 	// 检查要添加的音乐是否存在(状态)
+	_, err := db.GetMusicWithUniqueMusicID(ctx, in.MusicID)
+	if err != nil{
+		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListID, in.MusicID, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
+		return resp, nil 
+	}
 
 	// TODO：加事务？进一步，还有哪里需要加事务吗
 
@@ -213,6 +224,7 @@ func (ml *FeiMusicMusicList)AddMusicToList(ctx context.Context, in *music.AddMus
 }
 
 func (ml *FeiMusicMusicList)RemoveMusicFromList(ctx context.Context, in *music.RemoveMusicFromListRequest) (*music.RemoveMusicFromListResponse, error){
+	//TODO：这个先不写
 	return 
 }
 

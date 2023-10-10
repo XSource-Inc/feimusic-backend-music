@@ -55,11 +55,11 @@ func UpdateMusic(ctx context.Context, musicID string, updateData map[string]any)
 	return nil
 }
 
-func db.SearchMusic(ctx context.Context, req *music.SearchMusicRequest)(*[]model.Music, int64, error){//加*吗
+func SearchMusic(ctx context.Context, req *music.SearchMusicRequest)(*[]model.Music, int64, error){//加*吗
 	return nil, 0, nil
 }
 
-func db.GetMusicWithUniqueMusicID(ctx context.Context, musicID string)(*model.Music, error){
+func GetMusicWithUniqueMusicID(ctx context.Context, musicID string)(*model.Music, error){
 	logs.CtxInfo(ctx, "[DB] get music, musid id=%v", musicID)
 	var music model.Music
 	res := db.First(&music, musicID)
@@ -69,3 +69,5 @@ func db.GetMusicWithUniqueMusicID(ctx context.Context, musicID string)(*model.Mu
 	}
 	return music, nil
 }
+
+

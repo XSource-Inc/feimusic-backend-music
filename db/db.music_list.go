@@ -59,6 +59,7 @@ func UpdateMusicList(ctx context.Context, listID string, updateData map[string]a
 }
 
 func GetMusicFromList(ctx context.Context, listID string)(*[]music.MusicList, int64, error){
+	logs.CtxInfo(ctx, "[DB] get music from music list, musid list id=%v", ListID)
 	musicList := []music.MusicList{}
 	var total int64
 
@@ -73,6 +74,30 @@ func GetMusicFromList(ctx context.Context, listID string)(*[]music.MusicList, in
 	return &musicList, total, nil
 }
 
+func JudgeMusicListWithListID(ctx context.Context, listID string) (error) {
+	logs.CtxInfo(ctx, "[DB] determine if the playlist exists,list id=%v", ListID)
+    musicList := model.MusicList{}
+    res := db.First(&musicList, "list_id = ?", listID)
+    if res.Error != nil {
+        logs.CtxWarn(ctx, "failed to get music list, err=%v", res.Error)
+        return res.Error
+    }
+	return nil
+}
+
 func AddMusicToList(ctx context.Context, listID, musicID string)(error) {
-	
+	logs.CtxInfo(ctx, "[DB] add music to music list, list id=%v, music id=%v", ListID, musicID)
+	// TODO:这里的处理不知道是不是正确
+	var musicList model.MusicList
+	musicList.MusicIDs = append(musicList.MusicIDs, musicID)
+	data := map[string][]string{
+		"music_ids": musicList.MusicIDs
+	}
+	res := db.Model(&musicList).Where("list_id = ?", listID).Updates(data)
+    if res.Error != nil {
+        logs.CtxWarn(ctx, "failed to append music ID to list, err=%v", res.Error)
+        return res.Error
+    }
+
+    return nil
 }
