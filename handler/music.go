@@ -134,24 +134,24 @@ func (m *FeiMusicMusic) GetMusic(ctx context.Context, req *music.GetMusicRequest
 	resp := &music.GetMusicResponse{}
 	music, err := db.GetMusicWithUniqueMusicID(ctx, music_id)
 	if err != nil {
-		logs.CtxWarn(ctx, "")// 这么写都不对呀，上面的函数里面已经打过一个日志了，这里咋还打日志呢
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "?"}
-		return resp, err
+		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取音乐失败"}
+		return resp, nil
 	}
-	if music == nil {
-		logs.CtxWarn(ctx, "")//咋写？
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "?"}
-		return resp, error.New("查询的音乐不存在，请确认")
+	if music == nil { //TODO:什么情况下会走到这个分支
+		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取音乐失败"}
+		return resp, nil
 	}
 
-	// 不需要返id?
+	// TODO:不需要返id?
 	resp.MusicName = music.MusicName,
 	resp.Artist = music.Artist,
 	resp.Album = music.Album,
 	resp.Tags = music.Tags,
 	resp.UserID = music.UserId,
 
-	resp.URL= temp("根据音乐信息生成音乐路径")
+	resp.URL= temp("根据音乐信息生成音乐路径")// TODO:根据音乐信息生成音乐路径
 
 	return resp, nil
 }

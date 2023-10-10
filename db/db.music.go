@@ -59,13 +59,12 @@ func db.SearchMusic(ctx context.Context, req *music.SearchMusicRequest)(*[]model
 	return nil, 0, nil
 }
 
-func db.GetMusicWithUniqueMusicID(ctx context.Context, music_id string)(*Model.music, error){
+func db.GetMusicWithUniqueMusicID(ctx context.Context, musicID string)(*model.Music, error){
 	var music model.Music
-	res := db.First(&music, music_id)
+	res := db.First(&music, musicID)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to get music, err=%v", res.Error)
 		return nil, res.Error
 	}
 	return music, nil
-
 }
