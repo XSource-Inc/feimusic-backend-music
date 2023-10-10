@@ -7,28 +7,29 @@ import (
 )
 
 type FeiMusicMusicList struct {
-	music.UnimplementedFeiMusicMusicListServer //这个成员是什么
+	music.UnimplementedFeiMusicMusicListServer 
 }
 
 
-// 参数名in更好？
+
 func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.CreateMusicListRequest) (*music.CreateMusicListResponse, error){
-	userID := GetValue(ctx, "user_id")
-	// 同一个用户的歌单不要重名？
+	userID := utils.GetValue(ctx, "user_id")
+
 	resp := &music.CreateMusicListRespons{}
-	dupl, err:= db.IsDuplicateMusicList(ctx, in.ListName, userID)
-	if err != nil {
+	// TODO:代码结构调整
+	dupl, err := db.IsDuplicateMusicList(ctx, in.ListName, userID)
+	if err != nil and err != gorm.ErrRecordNotFound{ // TODO：这里的判断和处理合适吗？一旦判重失败就不再创建？
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "?"}
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, err
 	}
 
 	if dupl {
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "?"}
-		return resp, error.New("歌单名称重复，请修改")
-		// new的报错和statusmessage都是给用户看的吗？不重复了吗
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单名称重复，请修改"}
+		return resp, nil
 	}
+
 	newMusicList := &model.MusicList{
 		ListName: in.ListName,
 		MusicIDs: []string{},
@@ -40,8 +41,8 @@ func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.Creat
 	err = db.CreateMusicList(ctx, newMusicList)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "?"}
-		return resp, err
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
+		return resp, nil
 	}
 	return resp, nil
 }

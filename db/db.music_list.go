@@ -1,23 +1,25 @@
 package db
 
-func IsDuplicateMusicList(ctx context.Context, list_name, user_id string)(bool, error){
-	music_list := &model.MusicList{ListName: list_name, userID: user_id}
-	res := db.First(&music_list)
+func IsDuplicateMusicList(ctx context.Context, listName, userID string)(bool, error){
+	logs.CtxInfo(ctx, "[DB] determine if the song title is duplicated, list name=%v, user=%v", listNmae, userID)
+	musicList := &model.MusicList{ListName: listName, userID: userID}
+	res := db.First(&musicList)
 	if res.Error != nil{
 		logs.CtxWarn(ctx, "failed to get music list, err=%v", res.Error)
-		return True, res.Error
+		return False, res.Error
 	}
-	if music_list.ListID != ""{
-		return True, nil // 这么判断对吗
+	if musicList.ListID != ""{
+		return True, nil // TODO:这么判断合适吗
 	} 
-	return Falsee, nil
+	return False, nil
 }
 
 
-func CreateMusicList(ctx, new_music_list *model.MusicList)(error){
-	db.Create(new_music_list)
+func CreateMusicList(ctx, newMusicList *model.MusicList)(error){
+	logs.CtxInfo(ctx, "[DB] create music list, data=%v", newMusicList)
+	res := db.Create(newMusicList)
 	if res.Error != nil {
-		logs.CtxWarn(ctx, "failed to add music list, err=%v", res.Error)
+		logs.CtxWarn(ctx, "failed to create music list, err=%v", res.Error)
 		return res.Error
 	}
 	return nil

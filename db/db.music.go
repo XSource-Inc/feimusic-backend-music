@@ -60,6 +60,7 @@ func db.SearchMusic(ctx context.Context, req *music.SearchMusicRequest)(*[]model
 }
 
 func db.GetMusicWithUniqueMusicID(ctx context.Context, musicID string)(*model.Music, error){
+	logs.CtxInfo(ctx, "[DB] get music, musid id=%v", musicID)
 	var music model.Music
 	res := db.First(&music, musicID)
 	if res.Error != nil {
