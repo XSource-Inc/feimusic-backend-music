@@ -50,6 +50,7 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicRequest) (*music.DeleteMusicResponse, error) {
 	//	TODO：怎么设计删除权限的限制呢
 	resp := &music.DeleteMusicResponse{}
+	// TODO:检查要删除的音乐是否存在
 	err := db.DeleteMusicWithID(ctx, req.MusicId) // 要删除的记录如果不存在会返回record not found的错误
 	if err != nil{
 		logs.CtxWarn(ctx, "failed to deletd music, err=%v", err)
@@ -63,6 +64,7 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 	// TODO:代码结构拆分，目前全写在这一个函数中了
 	// 做变更后的唯一性判断
 	//TODO:增加权限限制？仅歌曲上传人可修改歌曲？
+	// TODO:检查要更新的音乐是否存在
 	var (
 		change bool
 		musicName string = req.MusicName
@@ -103,7 +105,7 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 	
 	return resp, nil
 }
-
+// TODO:这个接口还没写
 func (m *FeiMusicMusic) SearchMusic(ctx context.Context, req *music.SearchMusicRequest) (*music.SearchMusicResponse, error) {
 	
 	resp := &music.SearchMusicResponse{}
@@ -139,6 +141,7 @@ func (m *FeiMusicMusic) GetMusic(ctx context.Context, req *music.GetMusicRequest
 		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取音乐失败"}
 		return resp, nil
+		//TODO:这里是不是应该区分系统错误和要获取的音乐在库中不存在的情况
 	}
 	if music == nil { //TODO:什么情况下会走到这个分支
 		logs.CtxWarn(ctx, "failed to get music, err=%v", err)

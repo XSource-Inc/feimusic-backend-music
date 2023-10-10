@@ -58,15 +58,21 @@ func UpdateMusicList(ctx context.Context, listID string, updateData map[string]a
 	return nil
 }
 
-func GetMusicFromList(ctx context.Context, list_id string)(*[]music.MusicList, int64, error){
-	music_list := []music.MusicList{}
-	total := 0
-	res := db.Fetch(&music_list, ListID = list_id)//fetch是这么写吗？
+func GetMusicFromList(ctx context.Context, listID string)(*[]music.MusicList, int64, error){
+	musicList := []music.MusicList{}
+	var total int64
+
+	res := db.Model(&musicList).Where("ListID = ?", listID).Find(&musicList)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to get music from list, err=%v", res.Error)
 		return nil, 0, res.Error
 	}
-	total = res.//?
-	return music_list, total, nil
-	//不会写
+
+	total = res.RowsAffected
+
+	return &musicList, total, nil
+}
+
+func AddMusicToList(ctx context.Context, listID, musicID string)(error) {
+	
 }
