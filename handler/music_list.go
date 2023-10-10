@@ -224,8 +224,54 @@ func (ml *FeiMusicMusicList)AddMusicToList(ctx context.Context, in *music.AddMus
 }
 
 func (ml *FeiMusicMusicList)RemoveMusicFromList(ctx context.Context, in *music.RemoveMusicFromListRequest) (*music.RemoveMusicFromListResponse, error){
-	//TODO：这个先不写
-	return 
+	// 检查入参中的歌单是否存在
+	err := db.JudgeMusicListWithListID(ctx, in.ListID)
+	if err != nil{
+		logs.CtxWarn(ctx, "failed to delete music from music_list, list id=%v, music id=%v, err=%v", in.ListID, in.MusicID, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单中指定音乐失败"}
+		return resp, nil
+	}
+
+	// 检查要删除的音乐是否存在？有必要吗，应该没必要
+	// _, err := db.GetMusicWithUniqueMusicID(ctx, in.MusicID)
+	// if err != nil{
+	// 	logs.CtxWarn(ctx, "failed to delete music to music_list, list id=%v, music id=%v, err=%v", in.ListID, in.MusicID, err)
+	// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单中指定音乐失败"}
+	// 	return resp, nil 
+	// }
+
+	// TODO：加事务？进一步，还有哪里需要加事务吗
+
+
+	//鉴权，看入参中的歌单是否属于当前登陆人
+	//实际上，如果没有前序的歌单存在性检查，这里也是可以捕获到这种情况并报错的，是不是前面的检查可以去掉呢
+	userID := utils.GetValue(ctx, "user_id") 
+	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListID)
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to delete music from music_list, list id=%v, music id=%v, err=%v", in.ListID, in.MusicID, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单中指定音乐失败"}
+		return resp, nil
+	}
+	if userIDFromTable == "" {
+		logs.CtxWarn(ctx, "failed to delete music from music_list, list id=%v, music id=%v, err=%v", in.ListID, in.MusicID, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单中指定音乐失败"}
+		return resp, nil
+	}
+
+	if userIDFromTable != UserID{
+		logs.CtxWarn(ctx, "No permission to delete music from this music_list, err=%v", err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有删除权限"}
+		return resp, nil
+	}
+
+	err := db.DeleteMusicFromList(ctx, in.MusicID, in.ListID)
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to delete music from music_list, list id=%v, music id=%v, err=%v", in.ListID, in.MusicID, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单中指定音乐失败"}
+		return resp, nil
+	} 
+
+	return resp, nil
 }
 
 

@@ -6,7 +6,7 @@ import (
 	"github.com/XSource-Inc/feimusic-backend-music/db"
 	"github.com/XSource-Inc/grpc_idl/go/proto_gen/fei_music/music"
 )
-
+// TODO:需要学习如何加监控和追踪（已有，但是处理的感觉不太好）
 type FeiMusicMusic struct {
 	music.UnimplementedFeiMusicMusicServer
 }
@@ -105,7 +105,7 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 	
 	return resp, nil
 }
-// TODO:这个接口还没写
+// TODO:这个接口还没写, 分页、查询
 func (m *FeiMusicMusic) SearchMusic(ctx context.Context, req *music.SearchMusicRequest) (*music.SearchMusicResponse, error) {
 	
 	resp := &music.SearchMusicResponse{}
