@@ -15,7 +15,7 @@ type FeiMusicMusicList struct {
 func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.CreateMusicListRequest) (*music.CreateMusicListResponse, error){
 	userID := utils.GetValue(ctx, "user_id")
 
-	resp := &music.CreateMusicListRespons{}
+	resp := &music.CreateMusicListResponse{}
 	// TODO:代码结构调整
 	dupl, err := db.IsDuplicateMusicList(ctx, in.ListName, userID)
 	if err != nil and err != gorm.ErrRecordNotFound{ // TODO：这里的判断和处理合适吗？一旦判重失败就不再创建？
@@ -47,32 +47,35 @@ func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.Creat
 	return resp, nil
 }
 
-
-
 func (ml *FeiMusicMusicList)DeleteMusicList(ctx context.Context, in *music.DeleteMusicListRequest) (*music.DeleteMusicListResponse, error){
-	// 有业务限制吗，user_id == userID就行吧？
-	userID := GetValue(ctx, "user_id")
-	user_id, err := db.GetUserIDWithListID(ctx, in.ListID) // 这个适用性好局限，要改进吗
+	// 删除歌单时仅限制操作人是歌单归属人
+	resp := &music.DeleteMusicListResponse{}
+	// TODO:判断是否有操作权限的代码别的接口也需要，单独抽出个函数还是做成中间件？
+	userID := utils.GetValue(ctx, "user_id") // TODO:需要考虑取不到userid的情况吗
+	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListID)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to obtain user_id of music_list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "?"}
-		return resp, err
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
+		return resp, nil
 	}
-	if user_id == ""{
-		// 要删的数据的user_id找不到，要报错还是？
-		return resp, err
+	if userIDFromTable == "" {
+		// TODO：要考虑这种情况吗，出现这种情况一定是因为表中的值为空字符串？
+		logs.CtxWarn(ctx, "failed to obtain user_id of music_list, err=%v", err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
+		return resp, nil
 	}
-	if user_id != UserID{
+
+	if userIDFromTable != UserID{
 		logs.CtxWarn(ctx, "No permission to delete this music_list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "?"}
-		return resp, error.New("非本人歌单，没有删除权限")
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有删除权限"}
+		return resp, nil
 	}
-	// 以上代码别的接口也需要，单独抽出个函数还是做成中间件？
+
 	err = db.DeleteMusicList(ctx, in.MusicID)
 	if err != nil{
 		logs.CtxWarn(ctx, "failed to delete music_list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "?"}
-		return resp, err
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
+		return resp, nil
 	}
 	return resp, nil
 }

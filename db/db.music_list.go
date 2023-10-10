@@ -25,19 +25,21 @@ func CreateMusicList(ctx, newMusicList *model.MusicList)(error){
 	return nil
 }
 
-func GetUserIDWithListID(ctx context.Context, list_id string)(string, error){
-	music_list := model.MusicList{ListID: list_id}
-	res := db.First(&music_list) // 这样查出来的字段太多了，我只需要一个字段就够了，怎么写
+func GetUserIDWithListID(ctx context.Context, listID string)(string, error){
+	logs.CtxInfo(ctx, "[DB] get user id with music list id, list id=%v", ListID)
+	musicList := model.MusicList{ListID: listID}
+	res := db.First(&musicList)
 	if res.Error != nil {
-		logs.CtxWarn(ctx, "failed to get user_id of music_list, err=%v", res.Error)
+		logs.CtxWarn(ctx, "failed to get user id of music list, err=%v", res.Error)
 		return "", res.Error
 	}
-	return music_list.userID, nil
+	return musicList.userID, nil
 }
 
-func DeleteMusicList(ctx context.Context, music_id string)(error){
-	music_list := model.MusicList{}
-	res := db.Delete(&music_list, music_id) 
+func DeleteMusicList(ctx context.Context, musicID string)(error){
+	logs.CtxInfo(ctx, "[DB] delete music list, music id=%v", musicID)
+	musicList := model.MusicList{}
+	res := db.Delete(&musicList, musicID) 
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music list, err=%v", res.Error)
 		return res.Error
