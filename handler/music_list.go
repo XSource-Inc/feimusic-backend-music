@@ -16,7 +16,7 @@ func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.Creat
 	resp := &music.CreateMusicListResponse{}
 	// TODO:代码结构调整
 	dupl, _, err := db.IsDuplicateMusicList(ctx, in.ListName, userID)
-	if err != nil and err != gorm.ErrRecordNotFound{ // TODO：这里的判断和处理合适吗？一旦判重失败就不再创建？
+	if err != nil && err != gorm.ErrRecordNotFound{ // TODO：这里的判断和处理合适吗？一旦判重失败就不再创建？
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, err
@@ -52,6 +52,7 @@ func (ml *FeiMusicMusicList)DeleteMusicList(ctx context.Context, in *music.Delet
 	// TODO:判断是否有操作权限的代码别的接口也需要，单独抽出个函数还是做成中间件？
 	// 定制化的报错怎么处理呢=》不处理了嘛？那就无法区分系统错误和没有权限的情况了？
 	userID := utils.GetValue(ctx, "user_id") // TODO:需要考虑取不到userid的情况吗
+	// todo：userid应该从in里传过来
 	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListID)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListID, err)
@@ -108,13 +109,13 @@ func (ml *FeiMusicMusicList)UpdateMusicList(ctx context.Context, in *music.Updat
 	// 做变更后的唯一性判断
 	if in.ListName != nil {
 		dupl, musicListID, err := db.IsDuplicateMusicList(ctx, in.ListName, userID)
-		if err != nil and err != gorm.ErrRecordNotFound{ // TODO：这里的判断和处理合适吗？一旦判重失败就不再创建？
+		if err != nil && err != gorm.ErrRecordNotFound{ // TODO：这里的判断和处理合适吗？一旦判重失败就不再创建？
 			logs.CtxWarn(ctx, "failed to update music list, listid=%v, err=%v", in.ListID, err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌单失败"}
 			return resp, err
 		}
 	
-		if dupl and musicListID != listID {
+		if dupl && musicListID != listID {
 			logs.CtxWarn(ctx, "failed to update music list, listid=%v, err=%v", in.ListID, err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "修改后的歌单名与已有歌单名重复，请修改"}
 			return resp, nil

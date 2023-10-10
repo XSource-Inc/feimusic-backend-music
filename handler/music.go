@@ -71,7 +71,7 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 		artist []string = req.Artist
 	)
 	
-	if musicName != nil and artist != nil {
+	if musicName != nil && artist != nil {
 		change = True
 	} else if musicName != nil {
 		change = True
@@ -150,11 +150,11 @@ func (m *FeiMusicMusic) GetMusic(ctx context.Context, req *music.GetMusicRequest
 	}
 
 	// TODO:不需要返id?
-	resp.MusicName = music.MusicName,
-	resp.Artist = music.Artist,
-	resp.Album = music.Album,
-	resp.Tags = music.Tags,
-	resp.UserID = music.UserId,
+	resp.MusicName = music.MusicName
+	resp.Artist = music.Artist
+	resp.Album = music.Album
+	resp.Tags = music.Tags
+	resp.UserID = music.UserId
 
 	resp.URL= temp("根据音乐信息生成音乐路径")// TODO:根据音乐信息生成音乐路径
 
