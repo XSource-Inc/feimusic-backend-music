@@ -1,17 +1,17 @@
 package db
 
-func IsDuplicateMusicList(ctx context.Context, listName, userID string)(bool, error){
+func IsDuplicateMusicList(ctx context.Context, listName, userID string)(bool, string, error){
 	logs.CtxInfo(ctx, "[DB] determine if the song title is duplicated, list name=%v, user=%v", listNmae, userID)
 	musicList := &model.MusicList{ListName: listName, userID: userID}
 	res := db.First(&musicList)
 	if res.Error != nil{
 		logs.CtxWarn(ctx, "failed to get music list, err=%v", res.Error)
-		return False, res.Error
+		return False, "" , res.Error
 	}
 	if musicList.ListID != ""{
-		return True, nil // TODO:这么判断合适吗
+		return True, musicList.ListID, nil // TODO:这么判断合适吗
 	} 
-	return False, nil
+	return False, "", nil
 }
 
 
@@ -42,6 +42,17 @@ func DeleteMusicList(ctx context.Context, musicID string)(error){
 	res := db.Delete(&musicList, musicID) 
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music list, err=%v", res.Error)
+		return res.Error
+	}
+	return nil
+}
+
+func UpdateMusicList(ctx context.Context, listID string, updateData map[string]any)(error){
+	logs.CtxInfo(ctx, "[DB] update music list, musid list id=%v, data=%v", ListID, updateData)
+	var musicList model.MusicList
+	res := db.Model(&musicList).Where("list_id = ?", listID).Updates(updateData)
+	if res.Error != nil {
+		logs.CtxWarn(ctx, "failed to update music list, err=%v", res.Error)
 		return res.Error
 	}
 	return nil

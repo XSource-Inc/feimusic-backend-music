@@ -10,7 +10,7 @@ import (
 type FeiMusicMusic struct {
 	music.UnimplementedFeiMusicMusicServer
 }
-
+// TODO:有些接口限制登陆后访问，有些接口不限制必须登陆才可访问，怎么做呢
 func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest) (*music.AddMusicResponse, error) {
 	resp := &user.UserSignUpResponse{}
 	musicName := resp.MusicName
@@ -48,6 +48,7 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 
 // TODO:音乐记录要做假删除吗
 func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicRequest) (*music.DeleteMusicResponse, error) {
+	//	TODO：怎么设计删除权限的限制呢
 	resp := &music.DeleteMusicResponse{}
 	err := db.DeleteMusicWithID(ctx, req.MusicId) // 要删除的记录如果不存在会返回record not found的错误
 	if err != nil{
@@ -61,6 +62,7 @@ func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicR
 func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicRequest) (*music.UpdateMusicResponse, error) {
 	// TODO:代码结构拆分，目前全写在这一个函数中了
 	// 做变更后的唯一性判断
+	//TODO:增加权限限制？仅歌曲上传人可修改歌曲？
 	var (
 		change bool
 		musicName string = req.MusicName
@@ -94,7 +96,7 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 
 	err := db.UpdateMusic(ctx, req.MusicID, updateData) // TODO:如果上面if change进入了，这里对err重新声明会有什么问题，有没有其他处理方法
 	if err != nil {
-		logs.CtxWarn(ctx, "failed to update music, err=%v", err) // TODO:重复报错的问题有没有更好的处理
+		logs.CtxWarn(ctx, "failed to update music, err=%v", err) // TODO:重复报错的问题有没有更好的处理(里层和外层的报错信息可能是不同的？)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐更新失败"}
 		return resp, nil
 	}
