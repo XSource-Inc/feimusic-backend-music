@@ -16,12 +16,27 @@ func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName string, mu
 
 	err := db.First(&music).Error
 	if err != nil{
-		logs.CtxWarn(ctx, "failed to get user, err=%v", err)
+		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
 		return nil, err
 	}
 
 	return nil
 }
+
+func JudgeMusicWithMusicID(ctx context.Context, musicID string)(bool, error){
+	logs.CtxInfo(ctx, "[DB] check if the music to be deteled exist, music id=%v", musicID)
+	music := model.Music{
+		MusicID: musicID,
+	}
+
+	err := db.Frist(&music).Error
+	if err != nil{
+		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
+		return false, err
+	}
+	return true, nil
+}	
+
 
 func AddMusic(ctx context.Context, newMusic *model.Music)(error){
 	logs.CtxInfo(ctx, "[DB] add music=%v", newMusic)

@@ -10,7 +10,7 @@ import (
 type FeiMusicMusic struct {
 	music.UnimplementedFeiMusicMusicServer
 }
-// TODO:有些接口限制登陆后访问，有些接口不限制必须登陆才可访问，怎么做呢
+// TODO:有些接口限制登陆后访问，有些接口不限制必须登陆才可访问，怎么做呢=>网关层控制的？
 func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest) (*music.AddMusicResponse, error) {
 	resp := &user.UserSignUpResponse{}
 	musicName := resp.MusicName
@@ -26,6 +26,12 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 		timeStamp := fmt.Sprintf("%d", time.Now().Unix())
 		musicName += timeStamp
 	}
+
+	if err != nil and err != gorm.ErrRecordNotFound {
+		logs.CtxWarn(ctx, "failed to create music, err=%v", err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "添加音乐失败"} 
+		return resp, nil 
+	}
 	
 	userID := GetValue(ctx, "user_id")
 
@@ -36,25 +42,42 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 		Tags:      req.Tags,
 		UserID:    userID,
 	}
-	err = db.AddMusic(ctx, newMusic) // TODO:这里为什么没有正常跳转
+	err = db.AddMusic(ctx, newMusic) 
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to create music, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "添加音乐失败"} 
-		return resp, nil // TODO:这里其实重复了，删除吗？
+		return resp, nil 
 	} 
 
 	return resp, nil 
 }
 
-// TODO:音乐记录要做假删除吗
 func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicRequest) (*music.DeleteMusicResponse, error) {
-	//	TODO：怎么设计删除权限的限制呢
 	resp := &music.DeleteMusicResponse{}
-	// TODO:检查要删除的音乐是否存在
-	err := db.DeleteMusicWithID(ctx, req.MusicId) // 要删除的记录如果不存在会返回record not found的错误
+
+	// 检查要删除的音乐是否存在
+	err := JudgeMusicWithMusicID(ctx, req.MusicId)
 	if err != nil{
-		logs.CtxWarn(ctx, "failed to deletd music, err=%v", err)
+		if err == gorm.ErrRecordNotFound{
+			logs.CtxWarn(ctx, "the music to be deleted does not exist, music id=%v", req.MusicId)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要删除的音乐不存在"}
+			return resp, nil 
+		} else{
+			logs.CtxWarn(ctx, "failed to delete music, err=%v", err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除音乐失败"}
+			return resp, nil
+		}
+	} 
+
+	//TODO:判断是否有删除权限，暂时处理成仅可删除本人上传的音乐
+
+
+	//TODO:要处理成软删除
+	err := db.DeleteMusicWithID(ctx, req.MusicId) // 要删除的记录如果不存在会返回record not found的错误 
+	if err != nil{
+		logs.CtxWarn(ctx, "failed to delete music, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除音乐失败"}
+		return resp, nil 
 	}
 	
 	return resp, nil
