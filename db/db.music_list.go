@@ -6,16 +6,22 @@ import (
 	"github.com/Kidsunbo/kie_toolbox_go/logs"
 	"github.com/XSource-Inc/feimusic-backend-music/model"
 	"github.com/XSource-Inc/feimusic-backend-music/utils"
+	"github.com/jinzhu/gorm"
 )
 
 func IsDuplicateMusicList(ctx context.Context, listName, userID string)(bool, string, error){
 	logs.CtxInfo(ctx, "[DB] determine if the song title is duplicated, list name=%v, user=%v", listName, userID)
 	musicList := &model.MusicList{ListName: listName, UserID: userID}
-	res := db.First(&musicList)
-	if res.Error != nil{
-		logs.CtxWarn(ctx, "failed to get music list, err=%v", res.Error)
-		return false, "" , res.Error
+	err := db.First(&musicList).Error
+	if err != nil{
+		if err == gorm.ErrRecordNotFound {
+			return false, "", nil
+		} else {
+			logs.CtxWarn(ctx, "failed to get music list, err=%v", err)
+			return false, "" , err
+		}
 	}
+
 	if musicList.ListID != ""{
 		return true, musicList.ListID, nil // TODO:这么判断合适吗
 	} 

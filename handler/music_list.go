@@ -106,9 +106,15 @@ func (ml *FeiMusicMusicList)UpdateMusicList(ctx context.Context, in *music.Updat
 	userID := utils.GetValue(ctx, "user_id") // TODO:需要考虑取不到userid的情况吗
 	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
 	if err != nil {
-		logs.CtxWarn(ctx, "failed to update music list, listid=%v, err=%v", in.ListId, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌单失败"}
-		return resp, nil
+		if err == gorm.ErrRecordNotFound {
+			logs.CtxWarn(ctx, "failed to update music list, listid=%v, err=%v", in.ListId, err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要更新的歌单不存在"}
+			return resp, nil
+		} else {
+			logs.CtxWarn(ctx, "failed to update music list, listid=%v, err=%v", in.ListId, err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌单失败"}
+			return resp, nil
+		}
 	}
 	if userIDFromTable == "" {
 		// TODO：要考虑这种情况吗，出现这种情况一定是因为表中的值为空字符串？
@@ -127,7 +133,7 @@ func (ml *FeiMusicMusicList)UpdateMusicList(ctx context.Context, in *music.Updat
 	// 做变更后的唯一性判断
 	if in.ListName != nil {
 		dupl, musicListID, err := db.IsDuplicateMusicList(ctx, *in.ListName, userID)
-		if err != nil && err != gorm.ErrRecordNotFound{ // TODO：这里的判断和处理合适吗？一旦判重失败就不再创建？
+		if err != nil{ 
 			logs.CtxWarn(ctx, "failed to update music list, listid=%v, err=%v", in.ListId, err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌单失败"}
 			return resp, err
@@ -141,9 +147,9 @@ func (ml *FeiMusicMusicList)UpdateMusicList(ctx context.Context, in *music.Updat
 	}
 
 	updateData := map[string]any{}
-	utils.AddToMapIfNotNil(updateData, in.ListName) // TODO:入参不对，待修复
-	utils.AddToMapIfNotNil(updateData, in.ListComment)
-	utils.AddToMapIfNotNil(updateData, in.Tags)
+	utils.AddToMapIfNotNil(updateData, in.ListName, "listName") 
+	utils.AddToMapIfNotNil(updateData, in.ListComment, "listComment")
+	utils.AddToMapIfNotNil(updateData, in.Tags, "tags")// TODO:错误，待修复
 
 	err = db.UpdateMusicList(ctx, listID, updateData)
 	if err != nil {
@@ -151,8 +157,8 @@ func (ml *FeiMusicMusicList)UpdateMusicList(ctx context.Context, in *music.Updat
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单信息更新失败"}
 		return resp, nil
 	}
-	
-	return resp, nil
+	// TODO：需要返listid吗？
+	return resp, nil 
 }
 
 func (ml *FeiMusicMusicList)GetMusicFromList(ctx context.Context, in *music.GetMusicFromListRequest) (*music.GetMusicFromListResponse, error){
