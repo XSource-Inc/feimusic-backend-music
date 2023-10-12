@@ -4,7 +4,8 @@ import (
 	"context"
 
 	"github.com/Kidsunbo/kie_toolbox_go/logs"
-	"github.com/jinzhu/gorm"
+	"github.com/XSource-Inc/feimusic-backend-music/model"
+	"github.com/XSource-Inc/grpc_idl/go/proto_gen/fei_music/music"
 )
 
 func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName string, musicArtist []string)(error){
@@ -17,7 +18,7 @@ func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName string, mu
 	err := db.First(&music).Error
 	if err != nil{
 		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
-		return nil, err
+		return err
 	}
 
 	return nil
@@ -82,6 +83,6 @@ func GetMusicWithUniqueMusicID(ctx context.Context, musicID string)(*model.Music
 		logs.CtxWarn(ctx, "failed to get music, err=%v", res.Error)
 		return nil, res.Error
 	}
-	return music, nil
+	return &music, nil
 }
 

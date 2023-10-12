@@ -1,8 +1,16 @@
 package db
 
+import (
+	"context"
+
+	"github.com/Kidsunbo/kie_toolbox_go/logs"
+	"github.com/XSource-Inc/feimusic-backend-music/model"
+	"github.com/XSource-Inc/feimusic-backend-music/utils"
+)
+
 func IsDuplicateMusicList(ctx context.Context, listName, userID string)(bool, string, error){
 	logs.CtxInfo(ctx, "[DB] determine if the song title is duplicated, list name=%v, user=%v", listName, userID)
-	musicList := &model.MusicList{ListName: listName, userID: userID}
+	musicList := &model.MusicList{ListName: listName, UserID: userID}
 	res := db.First(&musicList)
 	if res.Error != nil{
 		logs.CtxWarn(ctx, "failed to get music list, err=%v", res.Error)
@@ -13,7 +21,6 @@ func IsDuplicateMusicList(ctx context.Context, listName, userID string)(bool, st
 	} 
 	return false, "", nil
 }
-
 
 func CreateMusicList(ctx context.Context, newMusicList *model.MusicList)(error){
 	logs.CtxInfo(ctx, "[DB] create music list, data=%v", newMusicList)
@@ -33,7 +40,7 @@ func GetUserIDWithListID(ctx context.Context, listID string)(string, error){
 		logs.CtxWarn(ctx, "failed to get user id of music list, err=%v", res.Error)
 		return "", res.Error
 	}
-	return musicList.userID, nil
+	return musicList.UserID, nil
 }
 
 func DeleteMusicList(ctx context.Context, musicID string)(error){
@@ -58,9 +65,9 @@ func UpdateMusicList(ctx context.Context, listID string, updateData map[string]a
 	return nil
 }
 
-func GetMusicFromList(ctx context.Context, listID string)(*[]music.MusicList, int64, error){
+func GetMusicFromList(ctx context.Context, listID string)(*[]model.MusicList, int64, error){
 	logs.CtxInfo(ctx, "[DB] get music from music list, musid list id=%v", listID)
-	musicList := []music.MusicList{}
+	musicList := []model.MusicList{}
 	var total int64
 
 	res := db.Model(&musicList).Where("ListID = ?", listID).Find(&musicList)
@@ -75,7 +82,7 @@ func GetMusicFromList(ctx context.Context, listID string)(*[]music.MusicList, in
 }
 
 func JudgeMusicListWithListID(ctx context.Context, listID string) (error) {
-	logs.CtxInfo(ctx, "[DB] determine if the playlist exists,list id=%v", ListID)
+	logs.CtxInfo(ctx, "[DB] determine if the playlist exists,list id=%v", listID)
     musicList := model.MusicList{}
     res := db.First(&musicList, "list_id = ?", listID)
     if res.Error != nil {
@@ -86,12 +93,12 @@ func JudgeMusicListWithListID(ctx context.Context, listID string) (error) {
 }
 
 func AddMusicToList(ctx context.Context, listID, musicID string)(error) {
-	logs.CtxInfo(ctx, "[DB] add music to music list, list id=%v, music id=%v", ListID, musicID)
+	logs.CtxInfo(ctx, "[DB] add music to music list, list id=%v, music id=%v", listID, musicID)
 	// TODO:这里的处理不知道是不是正确
 	var musicList model.MusicList
 	musicList.MusicIDs = append(musicList.MusicIDs, musicID)
 	data := map[string][]string{
-		"music_ids": musicList.MusicIDs
+		"music_ids": musicList.MusicIDs,
 	}
 	res := db.Model(&musicList).Where("list_id = ?", listID).Updates(data)
     if res.Error != nil {
@@ -102,8 +109,7 @@ func AddMusicToList(ctx context.Context, listID, musicID string)(error) {
     return nil
 }
 
-
-func DeleteMusicWithID(ctx context.Context, listID, musicID string)(error){
+func DeleteMusicFromList(ctx context.Context, listID, musicID string)(error){
 	logs.CtxInfo(ctx, "[DB] delete music from playlist, music id=%v, music list id=%v", musicID, listID)
 	var musicList model.MusicList
 	res := db.Model(&musicList).Where("ListID = ?", listID).Find(&musicList)
@@ -112,11 +118,11 @@ func DeleteMusicWithID(ctx context.Context, listID, musicID string)(error){
 		return res.Error
 	}
 
-	musicList.MusicIDs = utils.removeString(musicList.MusicIDs, musicID)
+	musicList.MusicIDs = utils.RemoveString(musicList.MusicIDs, musicID)
 	data := map[string][]string{
-		"music_ids": musicList.MusicIDs
+		"music_ids": musicList.MusicIDs,
 	}
-	res := db.Model(&musicList).Where("list_id = ?", listID).Updates(data)
+	res = db.Model(&musicList).Where("list_id = ?", listID).Updates(data)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music from music list, err=%v", res.Error)
 		return res.Error

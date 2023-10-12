@@ -21,7 +21,7 @@ func GetValue(ctx context.Context, value string) string {
 }
 
 //TODO：待升级
-func removeString(slice []string, target string) []string {
+func RemoveString(slice []string, target string) []string {
     result := slice[:0] 
     
     for _, s := range slice {
