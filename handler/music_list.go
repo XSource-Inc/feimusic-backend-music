@@ -13,7 +13,7 @@ import (
 )
 
 type FeiMusicMusicList struct {
-	music.UnimplementedFeiMusicMusicListServer // TODO:这里为什么报错了
+	music.UnimplementedFeiMusicMusicListServer // TODO:这里为什么报错了,这里没搞懂结构体包含这个成员的作用
 }
 
 func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.CreateMusicListRequest) (*music.CreateMusicListResponse, error){
@@ -22,7 +22,7 @@ func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.Creat
 	resp := &music.CreateMusicListResponse{}
 	// TODO:代码结构调整
 	dupl, _, err := db.IsDuplicateMusicList(ctx, in.ListName, userID)
-	if err != nil && err != gorm.ErrRecordNotFound{ // TODO：这里的判断和处理合适吗？一旦判重失败就不再创建？
+	if err != nil && err != gorm.ErrRecordNotFound{ // 
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, err
@@ -42,31 +42,43 @@ func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.Creat
 		UserID: userID,
 	}
 
-	err = db.CreateMusicList(ctx, newMusicList)
+	listID, err := db.CreateMusicList(ctx, newMusicList)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, nil
 	}
+	if listID == ""{ // TODO:是否有必要保留？
+		logs.CtxWarn(ctx, "failed to create music list, err=%v", err) // TODO：报错信息需要进一步明确吗
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
+		return resp, nil
+	}
+	resp.ListId = listID
 	return resp, nil
 }
 
 func (ml *FeiMusicMusicList)DeleteMusicList(ctx context.Context, in *music.DeleteMusicListRequest) (*music.DeleteMusicListResponse, error){
 	// 删除歌单时仅限制操作人是歌单归属人
 	resp := &music.DeleteMusicListResponse{}
-	// TODO:判断要删除的歌单是否存在
-	// TODO:判断是否有操作权限的代码别的接口也需要，单独抽出个函数还是做成中间件？
-	// 定制化的报错怎么处理呢=》不处理了嘛？那就无法区分系统错误和没有权限的情况了？
+
 	userID := utils.GetValue(ctx, "user_id") // TODO:需要考虑取不到userid的情况吗
-	// todo：userid应该从in里传过来
+	// TODO：userid应该从in里传过来=》错了吧？
 	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
 	if err != nil {
-		logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
-		return resp, nil
+		if err == gorm.ErrRecordNotFound {
+			logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要删除的歌单不存在"}
+			return resp, nil
+		} else {
+			logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
+			return resp, nil
+		}
 	}
 	if userIDFromTable == "" {
 		// TODO：要考虑这种情况吗，出现这种情况一定是因为表中的值为空字符串？
+		// TODO：困惑，是不是只考虑查询结果整体是nil的情况，不考虑业务字段为空的情况？
+		// 假入整个记录为nil，会在GetUserIDWithListID，return的musicList.UserID这里触发错误从而被上面捕获？
 		logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
 		return resp, nil
@@ -77,7 +89,7 @@ func (ml *FeiMusicMusicList)DeleteMusicList(ctx context.Context, in *music.Delet
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有删除权限"}
 		return resp, nil
 	}
-
+	// 软删除
 	err = db.DeleteMusicList(ctx, in.ListId)
 	if err != nil{
 		logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)

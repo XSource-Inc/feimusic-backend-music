@@ -22,14 +22,14 @@ func IsDuplicateMusicList(ctx context.Context, listName, userID string)(bool, st
 	return false, "", nil
 }
 
-func CreateMusicList(ctx context.Context, newMusicList *model.MusicList)(error){
+func CreateMusicList(ctx context.Context, newMusicList *model.MusicList)(string, error){
 	logs.CtxInfo(ctx, "[DB] create music list, data=%v", newMusicList)
 	res := db.Create(newMusicList)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", res.Error)
-		return res.Error
+		return "", res.Error// TODO:这里报错就一定是插入失败么，会不会是插入后的流程报错？
 	}
-	return nil
+	return newMusicList.ListID, nil
 }
 
 func GetUserIDWithListID(ctx context.Context, listID string)(string, error){
@@ -43,10 +43,10 @@ func GetUserIDWithListID(ctx context.Context, listID string)(string, error){
 	return musicList.UserID, nil
 }
 
-func DeleteMusicList(ctx context.Context, musicID string)(error){
-	logs.CtxInfo(ctx, "[DB] delete music list, music id=%v", musicID)
+func DeleteMusicList(ctx context.Context, listID string)(error){
+	logs.CtxInfo(ctx, "[DB] delete music list, list id=%v", listID)
 	musicList := model.MusicList{}
-	res := db.Delete(&musicList, musicID) 
+	res := db.Model(&musicList).Where("list_id = ?", listID).Update(map[string]any{"status": 1})
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music list, err=%v", res.Error)
 		return res.Error

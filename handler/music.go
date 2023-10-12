@@ -165,10 +165,10 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 	}
 
 	updateData := map[string]any{}
-	utils.AddToMapIfNotNil(updateData, req.MusicName) // TODO:入参不对，待修复
-	utils.AddToMapIfNotNil(updateData, req.Album)
-	utils.AddToMapIfNotNil(updateData, req.Tags)
-	utils.AddToMapIfNotNil(updateData, req.Artist)
+	utils.AddToMapIfNotNil(updateData, req.MusicName, "music_name") 
+	utils.AddToMapIfNotNil(updateData, req.Album, "album")
+	utils.AddToMapIfNotNil(updateData, req.Tags, "tags")
+	utils.AddToMapIfNotNil(updateData, req.Artist, "artist") // TODO：这里是要根据value的类型分批构建updatedata?
 
 	err = db.UpdateMusic(ctx, req.MusicId, updateData)
 	if err != nil {
