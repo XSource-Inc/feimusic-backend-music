@@ -7,14 +7,15 @@ import (
 	"github.com/XSource-Inc/grpc_idl/go/proto_gen/fei_music/music"
 )
 // TODO:需要学习如何加监控和追踪（已有，但是处理的感觉不太好）
+// TODO:参数的处理，例如去重前后空格，放在哪里处理呢？
 type FeiMusicMusic struct {
 	music.UnimplementedFeiMusicMusicServer
 }
 // TODO:有些接口限制登陆后访问，有些接口不限制必须登陆才可访问，怎么做呢=>网关层控制的？
 func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest) (*music.AddMusicResponse, error) {
-	resp := &user.UserSignUpResponse{}
+	resp := &music.AddMusicResponse{}
 	musicName := resp.MusicName
-	
+	// 使用音乐名和歌手联合判重
 	err := db.JudgeMusicWithUniqueNameAndArtist(ctx, req.MusicName, req.Artist)
 	if err == nil{
 		// 发现重名不支持添加
@@ -41,6 +42,7 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 		Album:     req.Album,
 		Tags:      req.Tags,
 		UserID:    userID,
+		StatusCode:0,
 	}
 	err = db.AddMusic(ctx, newMusic) 
 	if err != nil {
@@ -57,7 +59,7 @@ func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicR
 
 	//判断是否有删除权限，暂时处理成仅可删除本人上传的音乐
 	userID := utils.GetValue(ctx, "user_id")
-	userIDMusic, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId).UserID // TODO：不单独写个函数了吧
+	userIDOfMusic, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId).UserID // TODO：不单独写个函数了吧
 	if err != nil{
 		// 检查要删除的音乐是否存在
 		if err == gorm.ErrRecordNotFound{
@@ -70,7 +72,7 @@ func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicR
 			return resp, nil
 		}
 	} 
-	if userID != userIDMusic{
+	if userID != userIDOfMusic{
 		logs.CtxWarn(ctx, "currently, deleting music uploaded by others is not supported, music id=%v, operator id=%v", req.MusicId, userID)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "暂不支持删除他人上传的音乐"}
 		return resp, nil
@@ -89,9 +91,29 @@ func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicR
 
 func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicRequest) (*music.UpdateMusicResponse, error) {
 	// TODO:代码结构拆分，目前全写在这一个函数中了
+	resp := &music.UpdateMusicResponse{}
+	//权限限制：暂定仅歌曲上传人可修改歌曲
+	userID := utils.GetValue(ctx, "user_id")
+	userIDOfMusic, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId).UserID 
+	if err != nil{
+		// 检查要更新的音乐是否存在
+		if err == gorm.ErrRecordNotFound{
+			logs.CtxWarn(ctx, "the music to be updated does not exist, music id=%v", req.MusicId)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要更新的音乐不存在"}
+			return resp, nil 
+		} else{
+			logs.CtxWarn(ctx, "failed to update music, err=%v", err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新音乐失败"}
+			return resp, nil
+		}
+	} 
+	if userID != userIDOfMusic{
+		logs.CtxWarn(ctx, "currently, update music uploaded by others is not supported, music id=%v, operator id=%v", req.MusicId, userID)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "暂不支持更新他人上传的音乐"}
+		return resp, nil
+	}
+
 	// 做变更后的唯一性判断
-	//TODO:增加权限限制？仅歌曲上传人可修改歌曲？
-	// TODO:检查要更新的音乐是否存在
 	var (
 		change bool
 		musicName string = req.MusicName
@@ -108,14 +130,18 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 		musicName = db.GetMusicWithUniqueMusicID(ctx, req.MusicID).MusicName
 	} 
 	if change {
-		err := db.JudgeMusicWithUniqueNameAndArtist(ctx, musicName, artist)
+		err = db.JudgeMusicWithUniqueNameAndArtist(ctx, musicName, artist)
 		if err == nil{
 			timeStamp := fmt.Sprintf("%d", time.Now().Unix())
 			musicName += timeStamp
 		}
-	}
 
-	resp := &user.MusicUpdateResponse{}
+		if err != nil and err != gorm.ErrRecordNotFound {
+			logs.CtxWarn(ctx, "failed to update music, err=%v", err) 
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐更新失败"}
+			return resp, nil
+		}
+	}
 
 	updateData := map[string]any{}
 	utils.AddToMapIfNotNil(updateData, req.MusicName)
@@ -123,9 +149,10 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 	utils.AddToMapIfNotNil(updateData, req.Tags)
 	utils.AddToMapIfNotNil(updateData, req.Artist)
 
-	err := db.UpdateMusic(ctx, req.MusicID, updateData) // TODO:如果上面if change进入了，这里对err重新声明会有什么问题，有没有其他处理方法
+	err = db.UpdateMusic(ctx, req.MusicID, updateData)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to update music, err=%v", err) // TODO:重复报错的问题有没有更好的处理(里层和外层的报错信息可能是不同的？)
+		// TODO：有必要区分报错的位置吗，日志中本身就会标记文件、函数名和代码行？
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐更新失败"}
 		return resp, nil
 	}
