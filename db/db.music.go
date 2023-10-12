@@ -23,19 +23,19 @@ func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName string, mu
 	return nil
 }
 
-func JudgeMusicWithMusicID(ctx context.Context, musicID string)(bool, error){
-	logs.CtxInfo(ctx, "[DB] check if the music to be deteled exist, music id=%v", musicID)
-	music := model.Music{
-		MusicID: musicID,
-	}
+// func JudgeMusicWithMusicID(ctx context.Context, musicID string)(bool, error){
+// 	logs.CtxInfo(ctx, "[DB] check if the music to be deteled exist, music id=%v", musicID)
+// 	music := model.Music{
+// 		MusicID: musicID,
+// 	}
 
-	err := db.Frist(&music).Error
-	if err != nil{
-		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
-		return false, err
-	}
-	return true, nil
-}	
+// 	err := db.Frist(&music).Error
+// 	if err != nil{
+// 		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
+// 		return false, err
+// 	}
+// 	return true, nil
+// }	
 
 
 func AddMusic(ctx context.Context, newMusic *model.Music)(error){
@@ -51,7 +51,7 @@ func AddMusic(ctx context.Context, newMusic *model.Music)(error){
 func DeleteMusicWithID(ctx context.Context, musicID string)(error){
 	logs.CtxInfo(ctx, "[DB] delete music=%v", musicID)
 	music := model.Music{}
-	res := db.Delete(&music, musicID) 
+	res := db.Model(&music).Where("music_id = ?", musicID).Updates(map[string]any{"status_code": 1})
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music, err=%v", res.Error)
 		return res.Error
@@ -84,5 +84,4 @@ func GetMusicWithUniqueMusicID(ctx context.Context, musicID string)(*model.Music
 	}
 	return music, nil
 }
-
 

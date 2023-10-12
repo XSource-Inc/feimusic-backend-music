@@ -55,9 +55,11 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicRequest) (*music.DeleteMusicResponse, error) {
 	resp := &music.DeleteMusicResponse{}
 
-	// 检查要删除的音乐是否存在
-	err := JudgeMusicWithMusicID(ctx, req.MusicId)
+	//判断是否有删除权限，暂时处理成仅可删除本人上传的音乐
+	userID := utils.GetValue(ctx, "user_id")
+	userIDMusic, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId).UserID // TODO：不单独写个函数了吧
 	if err != nil{
+		// 检查要删除的音乐是否存在
 		if err == gorm.ErrRecordNotFound{
 			logs.CtxWarn(ctx, "the music to be deleted does not exist, music id=%v", req.MusicId)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要删除的音乐不存在"}
@@ -68,12 +70,14 @@ func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicR
 			return resp, nil
 		}
 	} 
+	if userID != userIDMusic{
+		logs.CtxWarn(ctx, "currently, deleting music uploaded by others is not supported, music id=%v, operator id=%v", req.MusicId, userID)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "暂不支持删除他人上传的音乐"}
+		return resp, nil
+	}
 
-	//TODO:判断是否有删除权限，暂时处理成仅可删除本人上传的音乐
-
-
-	//TODO:要处理成软删除
-	err := db.DeleteMusicWithID(ctx, req.MusicId) // 要删除的记录如果不存在会返回record not found的错误 
+	//处理成软删除
+	err := db.DeleteMusicWithID(ctx, req.MusicId) 
 	if err != nil{
 		logs.CtxWarn(ctx, "failed to delete music, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除音乐失败"}
