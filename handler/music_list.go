@@ -16,13 +16,13 @@ type FeiMusicMusicList struct {
 	music.UnimplementedFeiMusicMusicListServer // TODO:这里为什么报错了,这里没搞懂结构体包含这个成员的作用
 }
 
-func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.CreateMusicListRequest) (*music.CreateMusicListResponse, error){
+func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.CreateMusicListRequest) (*music.CreateMusicListResponse, error) {
 	userID := utils.GetValue(ctx, "user_id")
 
 	resp := &music.CreateMusicListResponse{}
 	// TODO:代码结构调整
 	dupl, _, err := db.IsDuplicateMusicList(ctx, in.ListName, userID)
-	if err != nil && err != gorm.ErrRecordNotFound{ // 
+	if err != nil && err != gorm.ErrRecordNotFound { //
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, err
@@ -35,11 +35,11 @@ func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.Creat
 	}
 
 	newMusicList := &model.MusicList{
-		ListName: in.ListName,
-		MusicIDs: []string{},
+		ListName:    in.ListName,
+		MusicIDs:    []string{},
 		ListComment: in.ListComment,
-		Tags: in.Tags,
-		UserID: userID,
+		Tags:        in.Tags,
+		UserID:      userID,
 	}
 
 	listID, err := db.CreateMusicList(ctx, newMusicList)
@@ -48,7 +48,7 @@ func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.Creat
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, nil
 	}
-	if listID == ""{ // TODO:是否有必要保留？
+	if listID == "" { // TODO:是否有必要保留？
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err) // TODO：报错信息需要进一步明确吗
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, nil
@@ -57,7 +57,7 @@ func (ml *FeiMusicMusicList)CreateMusicList(ctx context.Context, in *music.Creat
 	return resp, nil
 }
 
-func (ml *FeiMusicMusicList)DeleteMusicList(ctx context.Context, in *music.DeleteMusicListRequest) (*music.DeleteMusicListResponse, error){
+func (ml *FeiMusicMusicList) DeleteMusicList(ctx context.Context, in *music.DeleteMusicListRequest) (*music.DeleteMusicListResponse, error) {
 	// 删除歌单时仅限制操作人是歌单归属人
 	resp := &music.DeleteMusicListResponse{}
 
@@ -84,14 +84,14 @@ func (ml *FeiMusicMusicList)DeleteMusicList(ctx context.Context, in *music.Delet
 		return resp, nil
 	}
 
-	if userIDFromTable != userID{
+	if userIDFromTable != userID {
 		logs.CtxWarn(ctx, "No permission to delete this music_list, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有删除权限"}
 		return resp, nil
 	}
 	// 软删除
 	err = db.DeleteMusicList(ctx, in.ListId)
-	if err != nil{
+	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
 		return resp, nil
@@ -99,7 +99,7 @@ func (ml *FeiMusicMusicList)DeleteMusicList(ctx context.Context, in *music.Delet
 	return resp, nil
 }
 
-func (ml *FeiMusicMusicList)UpdateMusicList(ctx context.Context, in *music.UpdateMusicListRequest) (*music.UpdateMusicListResponse, error){
+func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.UpdateMusicListRequest) (*music.UpdateMusicListResponse, error) {
 	resp := &music.UpdateMusicListResponse{}
 	// TODO:判断要更新的歌单是否存在
 	// 仅可更新本人歌单  TODO:直接获取全部当前用户的歌单，判断要修改的歌单是否在其中是不是更好？
@@ -123,7 +123,7 @@ func (ml *FeiMusicMusicList)UpdateMusicList(ctx context.Context, in *music.Updat
 		return resp, nil
 	}
 
-	if userIDFromTable != userID{
+	if userIDFromTable != userID {
 		logs.CtxWarn(ctx, "No permission to update this music_list, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有更新权限"}
 		return resp, nil
@@ -133,12 +133,12 @@ func (ml *FeiMusicMusicList)UpdateMusicList(ctx context.Context, in *music.Updat
 	// 做变更后的唯一性判断
 	if in.ListName != nil {
 		dupl, musicListID, err := db.IsDuplicateMusicList(ctx, *in.ListName, userID)
-		if err != nil{ 
+		if err != nil {
 			logs.CtxWarn(ctx, "failed to update music list, listid=%v, err=%v", in.ListId, err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌单失败"}
 			return resp, err
 		}
-	
+
 		if dupl && musicListID != listID {
 			logs.CtxWarn(ctx, "failed to update music list, listid=%v, err=%v", in.ListId, err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "修改后的歌单名与已有歌单名重复，请修改"}
@@ -147,9 +147,9 @@ func (ml *FeiMusicMusicList)UpdateMusicList(ctx context.Context, in *music.Updat
 	}
 
 	updateData := map[string]any{}
-	utils.AddToMapIfNotNil(updateData, in.ListName, "listName") 
+	utils.AddToMapIfNotNil(updateData, in.ListName, "listName")
 	utils.AddToMapIfNotNil(updateData, in.ListComment, "listComment")
-	utils.AddToMapIfNotNil(updateData, in.Tags, "tags")// TODO:错误，待修复
+	utils.AddToMapIfNotNil(updateData, in.Tags, "tags") // TODO:错误，待修复
 
 	err = db.UpdateMusicList(ctx, listID, updateData)
 	if err != nil {
@@ -158,52 +158,61 @@ func (ml *FeiMusicMusicList)UpdateMusicList(ctx context.Context, in *music.Updat
 		return resp, nil
 	}
 	// TODO：需要返listid吗？
-	return resp, nil 
+	return resp, nil
 }
 
-func (ml *FeiMusicMusicList)GetMusicFromList(ctx context.Context, in *music.GetMusicFromListRequest) (*music.GetMusicFromListResponse, error){
+func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.GetMusicFromListRequest) (*music.GetMusicFromListResponse, error) {
 	resp := &music.GetMusicFromListResponse{}
-	// TODO:检查入参的歌单是否存在
 
 	// 鉴权，看请求的歌单是否归属当前登陆人
-	userID := utils.GetValue(ctx, "user_id") 
+	userID := utils.GetValue(ctx, "user_id")
 	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
 	if err != nil {
-		logs.CtxWarn(ctx, "failed to obtain music of music_list, listid=%v, err=%v", in.ListId, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
-		return resp, nil
+		// 检查歌单是否存在
+		if err == gorm.ErrRecordNotFound {
+			logs.CtxWarn(ctx, "failed to get music from music list, listid=%v, err=%v", in.ListId, err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单不存在"}
+			return resp, nil
+		} else {
+			logs.CtxWarn(ctx, "failed to get music from music list, listid=%v, err=%v", in.ListId, err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
+			return resp, nil
+		}
 	}
-	if userIDFromTable == "" {
+	if userIDFromTable == "" { //TODO:不确定是否需要
 		logs.CtxWarn(ctx, "failed to obtain music of music_list, listid=%v, err=%v", in.ListId, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
 		return resp, nil
 	}
 
-	if userIDFromTable != userID{
+	if userIDFromTable != userID {
 		logs.CtxWarn(ctx, "No permission to view this music_list, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有查看权限"}
 		return resp, nil
 	}
 
-	musicList, total, err := db.GetMusicFromList(ctx, in.ListId)
+	musicIDs, err := db.GetMusicFromList(ctx, in.ListId)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to obtain music of music_list, listid=%v, err=%v", in.ListId, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
 		return resp, nil
 	}
-	resp.MusicList = musicList // TODO:这里循环赋值吗，有别的处理方案么
-	// cannot use musicList (variable of type *[]model.MusicList) as []*music.MusicItem value in assignment
-	resp.Total = total
+	resp.Total = int64(len(musicIDs))
+	resp.MusicList = []*music.MusicItem{} // TODO:没想明白，为啥有个*
+	if resp.Total == 0 {
+		return resp, nil
+	}
+
+	// TODO:根据音乐id批量获取音乐详情，构建返回内容
+
 	return resp, nil
-} 
+}
 
-
-
-func (ml *FeiMusicMusicList)AddMusicToList(ctx context.Context, in *music.AddMusicToListRequest) (*music.AddMusicToListResponse, error){
+func (ml *FeiMusicMusicList) AddMusicToList(ctx context.Context, in *music.AddMusicToListRequest) (*music.AddMusicToListResponse, error) {
 	// 检查入参中的歌单是否存在，进一步考虑是不是要增加状态字段（软删除），增加的话这里还要判断状态
 	resp := &music.AddMusicToListResponse{}
 	err := db.JudgeMusicListWithListID(ctx, in.ListId)
-	if err != nil{
+	if err != nil {
 		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
 		return resp, nil //TODO:这里的错误处理看不出具体的错误是系统错误还是业务错误，也看不出错误的环节，如何改进？
@@ -213,17 +222,16 @@ func (ml *FeiMusicMusicList)AddMusicToList(ctx context.Context, in *music.AddMus
 	// TODO：不存在的音乐跳过，记录日志，存在的音乐添加，返回中列出添加情况？
 	// 检查要添加的音乐是否存在(状态)
 	_, err = db.GetMusicWithUniqueMusicID(ctx, in.MusicIds)
-	if err != nil{
+	if err != nil {
 		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
-		return resp, nil 
+		return resp, nil
 	}
 
 	// TODO：加事务？进一步，还有哪里需要加事务吗
 
-
 	//鉴权，看入参中的歌单是否属于当前登陆人
-	userID := utils.GetValue(ctx, "user_id") 
+	userID := utils.GetValue(ctx, "user_id")
 	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
@@ -236,7 +244,7 @@ func (ml *FeiMusicMusicList)AddMusicToList(ctx context.Context, in *music.AddMus
 		return resp, nil
 	}
 
-	if userIDFromTable != userID{
+	if userIDFromTable != userID {
 		logs.CtxWarn(ctx, "No permission to add music to this music_list, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有添加权限"}
 		return resp, nil
@@ -247,16 +255,16 @@ func (ml *FeiMusicMusicList)AddMusicToList(ctx context.Context, in *music.AddMus
 		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
 		return resp, nil
-	} 
+	}
 
 	return resp, nil
 }
 
-func (ml *FeiMusicMusicList)RemoveMusicFromList(ctx context.Context, in *music.RemoveMusicFromListRequest) (*music.RemoveMusicFromListResponse, error){
+func (ml *FeiMusicMusicList) RemoveMusicFromList(ctx context.Context, in *music.RemoveMusicFromListRequest) (*music.RemoveMusicFromListResponse, error) {
 	// 检查入参中的歌单是否存在
 	resp := &music.RemoveMusicFromListResponse{}
 	err := db.JudgeMusicListWithListID(ctx, in.ListId)
-	if err != nil{
+	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music from music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单中指定音乐失败"}
 		return resp, nil
@@ -268,15 +276,14 @@ func (ml *FeiMusicMusicList)RemoveMusicFromList(ctx context.Context, in *music.R
 	// if err != nil{
 	// 	logs.CtxWarn(ctx, "failed to delete music to music_list, list id=%v, music id=%v, err=%v", in.ListID, in.MusicID, err)
 	// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单中指定音乐失败"}
-	// 	return resp, nil 
+	// 	return resp, nil
 	// }
 
 	// TODO：加事务？进一步，还有哪里需要加事务吗
 
-
 	//鉴权，看入参中的歌单是否属于当前登陆人
 	//实际上，如果没有前序的歌单存在性检查，这里也是可以捕获到这种情况并报错的，是不是前面的检查可以去掉呢
-	userID := utils.GetValue(ctx, "user_id") 
+	userID := utils.GetValue(ctx, "user_id")
 	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music from music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
@@ -289,7 +296,7 @@ func (ml *FeiMusicMusicList)RemoveMusicFromList(ctx context.Context, in *music.R
 		return resp, nil
 	}
 
-	if userIDFromTable != userID{
+	if userIDFromTable != userID {
 		logs.CtxWarn(ctx, "No permission to delete music from this music_list, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有删除权限"}
 		return resp, nil
@@ -300,13 +307,7 @@ func (ml *FeiMusicMusicList)RemoveMusicFromList(ctx context.Context, in *music.R
 		logs.CtxWarn(ctx, "failed to delete music from music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单中指定音乐失败"}
 		return resp, nil
-	} 
+	}
 
 	return resp, nil
 }
-
-
-
-
-
-

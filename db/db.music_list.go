@@ -71,20 +71,17 @@ func UpdateMusicList(ctx context.Context, listID string, updateData map[string]a
 	return nil
 }
 
-func GetMusicFromList(ctx context.Context, listID string)(*[]model.MusicList, int64, error){
+func GetMusicFromList(ctx context.Context, listID string)([]string, error){
 	logs.CtxInfo(ctx, "[DB] get music from music list, musid list id=%v", listID)
-	musicList := []model.MusicList{}
-	var total int64
+	musicList := model.MusicList{ListID: listID}
 
-	res := db.Model(&musicList).Where("ListID = ?", listID).Find(&musicList)
+	res := db.First(&musicList)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to get music from list, err=%v", res.Error)
-		return nil, 0, res.Error
+		return nil, res.Error
 	}
 
-	total = res.RowsAffected
-
-	return &musicList, total, nil
+	return musicList.MusicIDs, nil
 }
 
 func JudgeMusicListWithListID(ctx context.Context, listID string) (error) {

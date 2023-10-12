@@ -85,4 +85,11 @@ func GetMusicWithUniqueMusicID(ctx context.Context, musicID string)(*model.Music
 	}
 	return &music, nil
 }
+// 获取单个，和批量获取，应该写成一个方法，还是两个方法呢
 
+func BatchGetMusicWithMuicID(ctx context.Context, musicIDs []string)([]*music.MusicItem, error){
+	logs.CtxInfo(ctx, "[DB] batch get music with music id, music ids=%v", musicIDs)
+	var music []model.Music
+	// TODO:不会写Find
+
+}
