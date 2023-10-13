@@ -219,24 +219,7 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 }
 
 func (ml *FeiMusicMusicList) AddMusicToList(ctx context.Context, in *music.AddMusicToListRequest) (*music.AddMusicToListResponse, error) {
-	// 检查入参中的歌单是否存在，进一步考虑是不是要增加状态字段（软删除），增加的话这里还要判断状态
 	resp := &music.AddMusicToListResponse{}
-	err := db.JudgeMusicListWithListID(ctx, in.ListId)
-	if err != nil {
-		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
-		return resp, nil //TODO:这里的错误处理看不出具体的错误是系统错误还是业务错误，也看不出错误的环节，如何改进？
-	}
-
-	// TODO：这里是支持批量添加的，目前处理成了单个添加，待修复
-	// TODO：不存在的音乐跳过，记录日志，存在的音乐添加，返回中列出添加情况？
-	// 检查要添加的音乐是否存在(状态)
-	_, err = db.GetMusicWithUniqueMusicID(ctx, in.MusicIds)
-	if err != nil {
-		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
-		return resp, nil
-	}
 
 	// TODO：加事务？进一步，还有哪里需要加事务吗
 
@@ -244,9 +227,16 @@ func (ml *FeiMusicMusicList) AddMusicToList(ctx context.Context, in *music.AddMu
 	userID := utils.GetValue(ctx, "user_id")
 	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
 	if err != nil {
-		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
-		return resp, nil
+		// 检查入参中的歌单是否存在
+		if err == gorm.ErrRecordNotFound{
+			logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单不存在"}
+			return resp, nil
+		} else {
+			logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
+			return resp, nil
+		}
 	}
 	if userIDFromTable == "" {
 		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
@@ -260,7 +250,27 @@ func (ml *FeiMusicMusicList) AddMusicToList(ctx context.Context, in *music.AddMu
 		return resp, nil
 	}
 
-	err = db.AddMusicToList(ctx, in.MusicIds, in.ListId)
+	// 筛选出入参中有效状态的音乐
+	effectiveMusicIDs, invalidMusicIDs, err := db.FilterMusicIDUsingIDAndStatus(ctx, in.MusicIds)
+
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
+		return resp, nil
+	}
+
+	if len(effectiveMusicIDs) == 0 {
+		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "指定添加的音乐均不存在"}
+		return resp, nil
+	}
+
+	if len(invalidMusicIDs) > 0 {
+		// TODO:如果指定添加的字段中存在无效的音乐id，需要返回吗，目前只在日志中做了记录
+		logs.CtxWarn(ctx, "there is invalid music in the specified added music, music id=%v", invalidMusicIDs)
+	}
+
+	err = db.AddMusicToList(ctx, in.ListId, in.MusicIds)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
