@@ -160,7 +160,7 @@ func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.Upda
 	// TODO：需要返listid吗？
 	return resp, nil
 }
-
+// TODO：没有处理已删除的音乐
 func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.GetMusicFromListRequest) (*music.GetMusicFromListResponse, error) {
 	resp := &music.GetMusicFromListResponse{}
 
@@ -198,12 +198,22 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 		return resp, nil
 	}
 	resp.Total = int64(len(musicIDs))
-	resp.MusicList = []*music.MusicItem{} // TODO:没想明白，为啥有个*
 	if resp.Total == 0 {
 		return resp, nil
 	}
-
-	// TODO:根据音乐id批量获取音乐详情，构建返回内容
+	
+	musicList, err := db.BatchGetMusicWithMuicID(ctx, musicIDs)
+	resp.MusicList = musicList
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to obtain music of music_list, listid=%v, err=%v", in.ListId, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
+		return resp, nil
+	}
+	if len(resp.MusicList) == 0{
+		logs.CtxWarn(ctx, "failed to obtain music of music_list, listid=%v, err=%v", in.ListId, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
+		return resp, nil
+	}
 
 	return resp, nil
 }

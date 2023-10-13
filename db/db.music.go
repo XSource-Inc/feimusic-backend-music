@@ -8,15 +8,15 @@ import (
 	"github.com/XSource-Inc/grpc_idl/go/proto_gen/fei_music/music"
 )
 
-func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName string, musicArtist []string)(error){
+func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName string, musicArtist []string) error {
 	logs.CtxInfo(ctx, "[DB] determine the uniqueness of a song based on song name and artist, song name=%v, artist=%v", musicName, musicArtist)
 	music := model.Music{
 		MusicName: musicName,
-		Artist: musicArtist,
+		Artist:    musicArtist,
 	}
 
 	err := db.First(&music).Error
-	if err != nil{
+	if err != nil {
 		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
 		return err
 	}
@@ -36,10 +36,9 @@ func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName string, mu
 // 		return false, err
 // 	}
 // 	return true, nil
-// }	
+// }
 
-
-func AddMusic(ctx context.Context, newMusic *model.Music)(error){
+func AddMusic(ctx context.Context, newMusic *model.Music) error {
 	logs.CtxInfo(ctx, "[DB] add music=%v", newMusic)
 	res := db.Create(newMusic)
 	if res.Error != nil {
@@ -49,9 +48,9 @@ func AddMusic(ctx context.Context, newMusic *model.Music)(error){
 	return nil
 }
 
-func DeleteMusicWithID(ctx context.Context, musicID string)(error){
+func DeleteMusicWithID(ctx context.Context, musicID string) error {
 	logs.CtxInfo(ctx, "[DB] delete music=%v", musicID)
-	music := model.Music{} 
+	music := model.Music{}
 	res := db.Model(&music).Where("music_id = ?", musicID).Update(map[string]any{"status": 1})
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music, err=%v", res.Error)
@@ -60,7 +59,7 @@ func DeleteMusicWithID(ctx context.Context, musicID string)(error){
 	return nil
 }
 
-func UpdateMusic(ctx context.Context, musicID string, updateData map[string]any)(error){
+func UpdateMusic(ctx context.Context, musicID string, updateData map[string]any) error {
 	logs.CtxInfo(ctx, "[DB] update music, musid id=%v, data=%v", musicID, updateData)
 	var music model.Music
 	res := db.Model(&music).Where("music_id = ?", musicID).Updates(updateData)
@@ -71,11 +70,11 @@ func UpdateMusic(ctx context.Context, musicID string, updateData map[string]any)
 	return nil
 }
 
-func SearchMusic(ctx context.Context, req *music.SearchMusicRequest)(*[]model.Music, int64, error){//加*吗
+func SearchMusic(ctx context.Context, req *music.SearchMusicRequest) (*[]model.Music, int64, error) { //加*吗
 	return nil, 0, nil
 }
 
-func GetMusicWithUniqueMusicID(ctx context.Context, musicID string)(*model.Music, error){
+func GetMusicWithUniqueMusicID(ctx context.Context, musicID string) (*model.Music, error) {
 	logs.CtxInfo(ctx, "[DB] get music, musid id=%v", musicID)
 	var music model.Music
 	res := db.First(&music, musicID)
@@ -85,11 +84,28 @@ func GetMusicWithUniqueMusicID(ctx context.Context, musicID string)(*model.Music
 	}
 	return &music, nil
 }
+
 // 获取单个，和批量获取，应该写成一个方法，还是两个方法呢
 
-func BatchGetMusicWithMuicID(ctx context.Context, musicIDs []string)([]*music.MusicItem, error){
+func BatchGetMusicWithMuicID(ctx context.Context, musicIDs []string) ([]*music.MusicItem, error) {
 	logs.CtxInfo(ctx, "[DB] batch get music with music id, music ids=%v", musicIDs)
-	var music []model.Music
-	// TODO:不会写Find
-
+	var songs []model.Music
+	var musicList []*music.MusicItem
+	err := db.Where("music_id in ?", musicIDs).Find(&songs).Error
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
+		return musicList, err
+	}
+	// TODO:这里的处理可以么
+	for _, m := range songs {
+		var musicItem *music.MusicItem
+		musicItem.MusicId = m.MusicID
+		musicItem.MusicName = m.MusicName
+		musicItem.Artist = m.Artist
+		musicItem.Album = *m.Album
+		musicItem.Tags = m.Tags
+		musicItem.UserId = m.UserID
+		musicList = append(musicList, musicItem)
+	}
+	return musicList, nil
 }

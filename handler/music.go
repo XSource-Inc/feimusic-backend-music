@@ -62,7 +62,7 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 
 	return resp, nil
 }
-
+// TODO：遗漏一个重要逻辑，删除音乐的同时，怎么处理歌单中的音乐呢
 func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicRequest) (*music.DeleteMusicResponse, error) {
 	resp := &music.DeleteMusicResponse{}
 
