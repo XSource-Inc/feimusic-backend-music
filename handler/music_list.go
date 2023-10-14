@@ -22,7 +22,7 @@ func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.Crea
 	resp := &music.CreateMusicListResponse{}
 	// TODO:代码结构调整
 	dupl, _, err := db.IsDuplicateMusicList(ctx, in.ListName, userID)
-	if err != nil && err != gorm.ErrRecordNotFound { //
+	if err != nil { 
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, err
@@ -48,11 +48,6 @@ func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.Crea
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, nil
 	}
-	if listID == "" { // TODO:是否有必要保留？
-		logs.CtxWarn(ctx, "failed to create music list, err=%v", err) // TODO：报错信息需要进一步明确吗
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
-		return resp, nil
-	}
 	resp.ListId = listID
 	return resp, nil
 }
@@ -75,14 +70,6 @@ func (ml *FeiMusicMusicList) DeleteMusicList(ctx context.Context, in *music.Dele
 			return resp, nil
 		}
 	}
-	if userIDFromTable == "" {
-		// TODO：要考虑这种情况吗，出现这种情况一定是因为表中的值为空字符串？
-		// TODO：困惑，是不是只考虑查询结果整体是nil的情况，不考虑业务字段为空的情况？
-		// 假入整个记录为nil，会在GetUserIDWithListID，return的musicList.UserID这里触发错误从而被上面捕获？
-		logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
-		return resp, nil
-	}
 
 	if userIDFromTable != userID {
 		logs.CtxWarn(ctx, "No permission to delete this music_list, err=%v", err)
@@ -101,9 +88,9 @@ func (ml *FeiMusicMusicList) DeleteMusicList(ctx context.Context, in *music.Dele
 
 func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.UpdateMusicListRequest) (*music.UpdateMusicListResponse, error) {
 	resp := &music.UpdateMusicListResponse{}
-	// TODO:判断要更新的歌单是否存在
-	// 仅可更新本人歌单  TODO:直接获取全部当前用户的歌单，判断要修改的歌单是否在其中是不是更好？
-	userID := utils.GetValue(ctx, "user_id") // TODO:需要考虑取不到userid的情况吗
+	
+	// 仅可更新本人歌单  
+	userID := utils.GetValue(ctx, "user_id") // TODO:需要考虑取不到userid的情况吗=》需要
 	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -115,12 +102,6 @@ func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.Upda
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌单失败"}
 			return resp, nil
 		}
-	}
-	if userIDFromTable == "" {
-		// TODO：要考虑这种情况吗，出现这种情况一定是因为表中的值为空字符串？
-		logs.CtxWarn(ctx, "failed to update music list, listid=%v, err=%v", in.ListId, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌单失败"}
-		return resp, nil
 	}
 
 	if userIDFromTable != userID {
@@ -179,11 +160,6 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 			return resp, nil
 		}
 	}
-	if userIDFromTable == "" { //TODO:不确定是否需要
-		logs.CtxWarn(ctx, "failed to obtain music of music_list, listid=%v, err=%v", in.ListId, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
-		return resp, nil
-	}
 
 	if userIDFromTable != userID {
 		logs.CtxWarn(ctx, "No permission to view this music_list, err=%v", err)
@@ -202,8 +178,7 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 		return resp, nil
 	}
 	
-	musicList, err := db.BatchGetMusicWithMuicID(ctx, musicIDs)
-	resp.MusicList = musicList
+	musicList, err := db.BatchGetMusicWithMsuicID(ctx, musicIDs)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to obtain music of music_list, listid=%v, err=%v", in.ListId, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
@@ -214,6 +189,7 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
 		return resp, nil
 	}
+	resp.MusicList = musicList
 
 	return resp, nil
 }
@@ -237,11 +213,6 @@ func (ml *FeiMusicMusicList) AddMusicToList(ctx context.Context, in *music.AddMu
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
 			return resp, nil
 		}
-	}
-	if userIDFromTable == "" {
-		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
-		return resp, nil
 	}
 
 	if userIDFromTable != userID {
