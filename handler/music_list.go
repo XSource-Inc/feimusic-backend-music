@@ -19,7 +19,7 @@ type FeiMusicMusicList struct {
 func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.CreateMusicListRequest) (*music.CreateMusicListResponse, error) {
 	userID := utils.GetValue(ctx, "user_id")
 
-	resp := &music.CreateMusicListResponse{}
+	resp := &music.CreateMusicListResponse{BaseResp: &base.BaseResp{}}
 	// TODO:代码结构调整
 	dupl, _, err := db.IsDuplicateMusicList(ctx, in.ListName, userID)
 	if err != nil { 
@@ -54,7 +54,7 @@ func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.Crea
 
 func (ml *FeiMusicMusicList) DeleteMusicList(ctx context.Context, in *music.DeleteMusicListRequest) (*music.DeleteMusicListResponse, error) {
 	// 删除歌单时仅限制操作人是歌单归属人
-	resp := &music.DeleteMusicListResponse{}
+	resp := &music.DeleteMusicListResponse{BaseResp: &base.BaseResp{}}
 
 	userID := utils.GetValue(ctx, "user_id") // TODO:需要考虑取不到userid的情况吗
 	// TODO：userid应该从in里传过来=》错了吧？
@@ -87,7 +87,7 @@ func (ml *FeiMusicMusicList) DeleteMusicList(ctx context.Context, in *music.Dele
 }
 
 func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.UpdateMusicListRequest) (*music.UpdateMusicListResponse, error) {
-	resp := &music.UpdateMusicListResponse{}
+	resp := &music.UpdateMusicListResponse{BaseResp: &base.BaseResp{}}
 	
 	// 仅可更新本人歌单  
 	userID := utils.GetValue(ctx, "user_id") // TODO:需要考虑取不到userid的情况吗=》需要
@@ -143,7 +143,7 @@ func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.Upda
 }
 // TODO：没有处理已删除的音乐
 func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.GetMusicFromListRequest) (*music.GetMusicFromListResponse, error) {
-	resp := &music.GetMusicFromListResponse{}
+	resp := &music.GetMusicFromListResponse{BaseResp: &base.BaseResp{}}
 
 	// 鉴权，看请求的歌单是否归属当前登陆人
 	userID := utils.GetValue(ctx, "user_id")
@@ -195,7 +195,7 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 }
 
 func (ml *FeiMusicMusicList) AddMusicToList(ctx context.Context, in *music.AddMusicToListRequest) (*music.AddMusicToListResponse, error) {
-	resp := &music.AddMusicToListResponse{}
+	resp := &music.AddMusicToListResponse{BaseResp: &base.BaseResp{}}
 
 	// TODO：加事务？进一步，还有哪里需要加事务吗
 
@@ -253,7 +253,7 @@ func (ml *FeiMusicMusicList) AddMusicToList(ctx context.Context, in *music.AddMu
 
 func (ml *FeiMusicMusicList) RemoveMusicFromList(ctx context.Context, in *music.RemoveMusicFromListRequest) (*music.RemoveMusicFromListResponse, error) {
 	// 检查入参中的歌单是否存在
-	resp := &music.RemoveMusicFromListResponse{}
+	resp := &music.RemoveMusicFromListResponse{BaseResp: &base.BaseResp{}}
 	err := db.JudgeMusicListWithListID(ctx, in.ListId)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music from music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)

@@ -22,7 +22,7 @@ type FeiMusicMusic struct {
 
 // TODO:有些接口限制登陆后访问，有些接口不限制必须登陆才可访问，怎么做呢=>网关层控制的？
 func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest) (*music.AddMusicResponse, error) {
-	resp := &music.AddMusicResponse{}
+	resp := &music.AddMusicResponse{BaseResp: &base.BaseResp{}}
 	musicName := req.MusicName
 	// 使用音乐名和歌手联合判重
 	// TODO：修改方案。
@@ -68,7 +68,7 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 }
 // TODO：遗漏一个重要逻辑，删除音乐的同时，怎么处理歌单中的音乐呢=》设置外键后，修改音乐状态，音乐列表和音乐的关联表的状态会自动修改
 func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicRequest) (*music.DeleteMusicResponse, error) {
-	resp := &music.DeleteMusicResponse{}
+	resp := &music.DeleteMusicResponse{BaseResp: &base.BaseResp{}}
 
 	//判断是否有删除权限，暂时处理成仅可删除本人上传的音乐
 	userID := utils.GetValue(ctx, "user_id")
@@ -107,7 +107,7 @@ func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicR
 
 func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicRequest) (*music.UpdateMusicResponse, error) {
 	// TODO:代码结构拆分，目前全写在这一个函数中了
-	resp := &music.UpdateMusicResponse{}
+	resp := &music.UpdateMusicResponse{BaseResp: &base.BaseResp{}}
 	//权限限制：暂定仅歌曲上传人可修改歌曲
 	userID := utils.GetValue(ctx, "user_id")
 	music, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId) 
@@ -187,7 +187,7 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 // TODO:这个接口还没写, 分页、查询
 func (m *FeiMusicMusic) SearchMusic(ctx context.Context, req *music.SearchMusicRequest) (*music.SearchMusicResponse, error) {
 
-	resp := &music.SearchMusicResponse{}
+	resp := &music.SearchMusicResponse{BaseResp: &base.BaseResp{}}
 	music_list, total, err := db.SearchMusic(ctx, req) // total如果用的是int64，那说明musicid也可以用int64
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to search music")
@@ -214,7 +214,8 @@ func (m *FeiMusicMusic) SearchMusic(ctx context.Context, req *music.SearchMusicR
 }
 
 func (m *FeiMusicMusic) GetMusic(ctx context.Context, req *music.GetMusicRequest) (*music.GetMusicResponse, error) {
-	resp := &music.GetMusicResponse{}
+	resp := &music.GetMusicResponse{BaseResp: &base.BaseResp{}}
+	// TODO:还没有赋初值
 	music, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
