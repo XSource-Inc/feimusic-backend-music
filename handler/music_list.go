@@ -13,7 +13,7 @@ import (
 )
 
 type FeiMusicMusicList struct {
-	music.UnimplementedFeiMusicMusicListServer // TODO:这里为什么报错了,这里没搞懂结构体包含这个成员的作用
+
 }
 
 func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.CreateMusicListRequest) (*music.CreateMusicListResponse, error) {
