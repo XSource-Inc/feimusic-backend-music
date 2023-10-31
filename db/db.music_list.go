@@ -11,8 +11,8 @@ import (
 
 func IsDuplicateMusicList(ctx context.Context, listName, userID string) (bool, string, error) {
 	logs.CtxInfo(ctx, "[DB] determine if the song title is duplicated, list name=%v, user=%v", listName, userID)
-	musicList := &model.MusicList{ListName: listName, UserID: userID}
-	err := db.First(&musicList).Error
+	musicList := &model.MusicList{}
+	err := db.Table("music_list").Where("list_name = ? and user_id = ?", listName, userID).First(&musicList).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return false, "", nil
@@ -52,7 +52,7 @@ func GetUserIDWithListID(ctx context.Context, listID string) (string, error) {
 func DeleteMusicList(ctx context.Context, listID string) error {
 	logs.CtxInfo(ctx, "[DB] delete music list, list id=%v", listID)
 	musicList := model.MusicList{}
-	res := db.Model(&musicList).Where("list_id = ?", listID).Update(map[string]any{"status": 1})
+	res := db.Model(&musicList).Where("list_id = ?", listID).Updates(map[string]any{"status": 1})
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music list, err=%v", res.Error)
 		return res.Error
@@ -70,12 +70,12 @@ func UpdateMusicList(ctx context.Context, listID string, updateData map[string]a
 	}
 	return nil
 }
-
+// TODO:表结构改了，这个方法就不对了，待升级
 func GetMusicFromList(ctx context.Context, listID string) ([]string, error) {
 	logs.CtxInfo(ctx, "[DB] get music from music list, list id=%v", listID)
-	musicList := model.MusicList{ListID: listID}
+	musicList := model.MusicList{}
 
-	res := db.First(&musicList)
+	res := db.Table("music_list").Where("list_id = ?", listID).First(&musicList)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to get music from list, err=%v", res.Error)
 		return nil, res.Error
@@ -118,17 +118,16 @@ func AddMusicToList(ctx context.Context, listID string, musicIDs []string) error
 	}
 	validMusicIDs := utils.FilterItem(musicIDs, listMusicIDs)
 
-
-
 	var musicList model.MusicList
 	for _, musicID := range validMusicIDs {
 		musicList.MusicIDs = append(musicList.MusicIDs, musicID)
 	}
-	
+	// TODO：1、本来已有的音乐被丢弃了；2、表结构改了，这个函数也需要重写
 	data := map[string][]string{
 		"music_ids": musicList.MusicIDs,
 	}
-	res := db.Model(&musicList).Where("list_id = ?", listID).Update(data)
+	// map只能用updates
+	res := db.Model(&musicList).Where("list_id = ?", listID).Updates(data)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to append music ID to list, err=%v", res.Error)
 		return res.Error

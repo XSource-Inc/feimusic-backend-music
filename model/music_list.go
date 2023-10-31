@@ -5,7 +5,7 @@ import (
 )
 
 type MusicList struct {
-	ListID      string     `gorm:"primary_key"` //TODO:这个tag可以省略吗
+	ListID      string     `gorm:"primary_key"` // TODO:主键全部改成int64
 	ListName    string     `grom:"list_name"`
 	ListComment *string    `grom:"list_comment"` // TODO：这里一般和IDL中的定义保持一致？
 	Tags        []string   `grom:"tags"`
@@ -24,3 +24,4 @@ type ListMusic struct {
 	UpdatedAt *time.Time `grom:"updateat"`
 	DeletedAt *time.Time `grom:"deleteat"`
 }
+
