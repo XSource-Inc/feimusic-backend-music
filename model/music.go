@@ -13,8 +13,8 @@ type Music struct {
 	UserID    string     `gorm:"user_id"`
 	Status    int32      `gorm:"status"`
 	CreatedAt time.Time  `gorm:"createat"`
-	UpdatedAt time.Time  `gorm:"updateat"` // 这个字段有必要吗,加*吗
+	UpdatedAt *time.Time  `gorm:"updateat"` 
 	DeletedAt *time.Time `gorm:"deleteat"`
 }
 
-// 相关表都写一个文件里吗
+

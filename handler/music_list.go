@@ -13,33 +13,33 @@ import (
 )
 
 type FeiMusicMusicList struct {
-	music.UnimplementedFeiMusicMusicListServer // TODO:这里为什么报错了,这里没搞懂结构体包含这个成员的作用
+	music.UnimplementedFeiMusicMusicServer
 }
 
 func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.CreateMusicListRequest) (*music.CreateMusicListResponse, error) {
-	userID := utils.GetValue(ctx, "user_id")
+	userID := in.UserId
 
 	resp := &music.CreateMusicListResponse{}
-	// TODO:代码结构调整
+
 	dupl, _, err := db.IsDuplicateMusicList(ctx, in.ListName, userID)
-	if err != nil && err != gorm.ErrRecordNotFound { //
+	if err != nil {
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, err
 	}
 
 	if dupl {
-		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单名称重复，请修改"}
+		logs.CtxWarn(ctx, "failed to create music list, duplicate music list name")
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "该歌单已存在，请确认"}
 		return resp, nil
 	}
 
 	newMusicList := &model.MusicList{
 		ListName:    in.ListName,
-		MusicIDs:    []string{},
 		ListComment: in.ListComment,
 		Tags:        in.Tags,
 		UserID:      userID,
+		Status:      1,
 	}
 
 	listID, err := db.CreateMusicList(ctx, newMusicList)
@@ -48,11 +48,7 @@ func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.Crea
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, nil
 	}
-	if listID == "" { // TODO:是否有必要保留？
-		logs.CtxWarn(ctx, "failed to create music list, err=%v", err) // TODO：报错信息需要进一步明确吗
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
-		return resp, nil
-	}
+	
 	resp.ListId = listID
 	return resp, nil
 }
@@ -160,6 +156,7 @@ func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.Upda
 	// TODO：需要返listid吗？
 	return resp, nil
 }
+
 // TODO：没有处理已删除的音乐
 func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.GetMusicFromListRequest) (*music.GetMusicFromListResponse, error) {
 	resp := &music.GetMusicFromListResponse{}
@@ -201,7 +198,7 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 	if resp.Total == 0 {
 		return resp, nil
 	}
-	
+
 	musicList, err := db.BatchGetMusicWithMuicID(ctx, musicIDs)
 	resp.MusicList = musicList
 	if err != nil {
@@ -209,7 +206,7 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
 		return resp, nil
 	}
-	if len(resp.MusicList) == 0{
+	if len(resp.MusicList) == 0 {
 		logs.CtxWarn(ctx, "failed to obtain music of music_list, listid=%v, err=%v", in.ListId, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
 		return resp, nil
@@ -228,7 +225,7 @@ func (ml *FeiMusicMusicList) AddMusicToList(ctx context.Context, in *music.AddMu
 	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
 	if err != nil {
 		// 检查入参中的歌单是否存在
-		if err == gorm.ErrRecordNotFound{
+		if err == gorm.ErrRecordNotFound {
 			logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单不存在"}
 			return resp, nil

@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/Kidsunbo/kie_toolbox_go/logs v0.0.0-20230812175704-5e8195de1111
-	github.com/XSource-Inc/grpc_idl/go v0.0.0-20231012063642-dd2930e23305
+	github.com/XSource-Inc/grpc_idl/go v0.0.0-20231030095010-2d78d735ceaf
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/jinzhu/gorm v1.9.16
 	google.golang.org/grpc v1.58.1

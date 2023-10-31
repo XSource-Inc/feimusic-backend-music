@@ -23,17 +23,17 @@ func IsDuplicateMusicList(ctx context.Context, listName, userID string) (bool, s
 	}
 
 	if musicList.ListID != "" {
-		return true, musicList.ListID, nil // TODO:这么判断合适吗
+		return true, musicList.ListID, nil 
 	}
 	return false, "", nil
 }
 
 func CreateMusicList(ctx context.Context, newMusicList *model.MusicList) (string, error) {
 	logs.CtxInfo(ctx, "[DB] create music list, data=%v", newMusicList)
-	res := db.Create(newMusicList)
-	if res.Error != nil {
-		logs.CtxWarn(ctx, "failed to create music list, err=%v", res.Error)
-		return "", res.Error // TODO:这里报错就一定是插入失败么，会不会是插入后的流程报错？
+	err := db.Create(newMusicList).Error
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
+		return "", err 
 	}
 	return newMusicList.ListID, nil
 }
