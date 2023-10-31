@@ -19,7 +19,7 @@ type FeiMusicMusicList struct {
 func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.CreateMusicListRequest) (*music.CreateMusicListResponse, error) {
 	userID := in.UserId
 
-	resp := &music.CreateMusicListResponse{BaseResp: &base.BaseResp{}}
+	resp := &music.CreateMusicListResponse{}
 
 	dupl, _, err := db.IsDuplicateMusicList(ctx, in.ListName, userID)
 	if err != nil {
@@ -55,33 +55,41 @@ func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.Crea
 
 func (ml *FeiMusicMusicList) DeleteMusicList(ctx context.Context, in *music.DeleteMusicListRequest) (*music.DeleteMusicListResponse, error) {
 	// 删除歌单时仅限制操作人是歌单归属人
-	resp := &music.DeleteMusicListResponse{BaseResp: &base.BaseResp{}}
+	resp := &music.DeleteMusicListResponse{}
 
-	userID := utils.GetValue(ctx, "user_id") // TODO:需要考虑取不到userid的情况吗
-	// TODO：userid应该从in里传过来=》错了吧？
+	userID := in.UserId
+
 	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要删除的歌单不存在"}
+			logs.CtxWarn(ctx, "failed to delete music list, list id=%v, err=%v", in.ListId, err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要删除的歌单不存在,请确认"}
 			return resp, nil
 		} else {
-			logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
+			logs.CtxWarn(ctx, "failed to delete music list, list id=%v, err=%v", in.ListId, err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
 			return resp, nil
 		}
 	}
 
 	if userIDFromTable != userID {
-		logs.CtxWarn(ctx, "No permission to delete this music_list, err=%v", err)
+		logs.CtxWarn(ctx, "the music_list does not belong to the operator, No permission to delete")
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有删除权限"}
 		return resp, nil
 	}
-	// 软删除
+	// 软删除-歌单
 	err = db.DeleteMusicList(ctx, in.ListId)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
+		return resp, nil
+	}
+	
+	// 软删除-删除歌单下歌曲
+	err = db.DeleteListMusic(ctx, in.ListId) // 后续可以增加删除歌曲的数量
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单下歌曲失败"} // 这里返回给用户这个信息貌似是无用的
 		return resp, nil
 	}
 	return resp, nil

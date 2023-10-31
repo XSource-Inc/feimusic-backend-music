@@ -49,12 +49,25 @@ func GetUserIDWithListID(ctx context.Context, listID string) (string, error) {
 	return musicList.UserID, nil
 }
 
+// 删除歌单
 func DeleteMusicList(ctx context.Context, listID string) error {
 	logs.CtxInfo(ctx, "[DB] delete music list, list id=%v", listID)
 	musicList := model.MusicList{}
 	res := db.Model(&musicList).Where("list_id = ?", listID).Updates(map[string]any{"status": 1})
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music list, err=%v", res.Error)
+		return res.Error
+	}
+	return nil
+}
+
+// 删除歌单下音乐
+func DeleteListMusic(ctx context.Context, listID string) error {
+	logs.CtxInfo(ctx, "[DB] delete music from specified music list, list id=%v", listID)
+	ListMusic := model.ListMusic{}
+	res := db.Model(&ListMusic).Where("list_id = ?", listID).Update(map[string]any{"status": 1}) // 这里的更新，gorm是加了事务的
+	if res.Error != nil {
+		logs.CtxWarn(ctx, "failed to delete music from specified music list, err=%v", res.Error)
 		return res.Error
 	}
 	return nil
