@@ -32,6 +32,7 @@ func RemoveString(slice []string, target string) []string {
 	return result
 }
 
+// A中存在，B中不存在的
 func FilterItem(A, B []string) []string {
 	existingEl := make(map[string]bool)
 
@@ -49,4 +50,26 @@ func FilterItem(A, B []string) []string {
 	return nonExistingEl
 }
 
+
+func Intersection(A, B []string) []string{
+	AEl := make(map[string]bool)
+	BEl := make(map[string]bool)
+
+	for _, el := range A{
+		AEl[el] = true
+	}
+	for _, el := range B{
+		BEl[el] = true
+	}
+
+	innerEl := []string{}
+
+	for el := range AEl{
+		if ok := BEl[el]; ok{
+			innerEl = append(innerEl, el)
+		}
+	} 
+
+	return innerEl
+}
 
