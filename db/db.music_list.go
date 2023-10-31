@@ -166,20 +166,11 @@ func AddMusicToList(ctx context.Context, listID string, musicIDs []string) error
 	return nil
 }
 
-func DeleteMusicFromList(ctx context.Context, listID, musicID string) error {
-	logs.CtxInfo(ctx, "[DB] delete music from playlist, music id=%v, music list id=%v", musicID, listID)
-	var musicList model.MusicList
-	res := db.Model(&musicList).Where("ListID = ?", listID).Find(&musicList)
-	if res.Error != nil {
-		logs.CtxWarn(ctx, "failed to get music from list, err=%v", res.Error)
-		return res.Error
-	}
-
-	musicList.MusicIDs = utils.RemoveString(musicList.MusicIDs, musicID)
-	data := map[string][]string{
-		"music_ids": musicList.MusicIDs,
-	}
-	res = db.Model(&musicList).Where("list_id = ?", listID).Updates(data)
+func DeleteMusicFromList(ctx context.Context, listID string, musicIDs []string, status int32) error {
+	logs.CtxInfo(ctx, "[DB] delete music from playlist, music ids=%v, music list id=%v", musicIDs, listID)
+	var listMusic model.ListMusic
+	
+	res := db.Model(&listMusic).Where("list_id = ? and musicID IN ?", listID, musicIDs).Updates(map[string]any{"status": status})
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music from music list, err=%v", res.Error)
 		return res.Error
