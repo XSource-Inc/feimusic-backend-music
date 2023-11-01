@@ -2,13 +2,14 @@ package db
 
 import (
 	"context"
+	"strings"
 
 	"github.com/Kidsunbo/kie_toolbox_go/logs"
 	"github.com/XSource-Inc/feimusic-backend-music/model"
 	"github.com/XSource-Inc/grpc_idl/go/proto_gen/fei_music/music"
 )
 
-func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName string, musicArtist []string) error {
+func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName, musicArtist string) error {
 	logs.CtxInfo(ctx, "[DB] determine the uniqueness of a song based on song name and artist, song name=%v, artist=%v", musicName, musicArtist)
 	music := model.Music{
 		MusicName: musicName,
@@ -95,14 +96,17 @@ func BatchGetMusicWithMsuicID(ctx context.Context, musicIDs []string) ([]*music.
 		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
 		return musicList, err
 	}
-
+	var artist, tags []string
+	
 	for _, m := range songs {
+		artist = strings.Split(m.Artist, ",")
+		tags = strings.Split(m.Tags, ",")
 		var musicItem *music.MusicItem
 		musicItem.MusicId = m.MusicID
 		musicItem.MusicName = m.MusicName
-		musicItem.Artist = m.Artist // TODO:待处理，格式不对
+		musicItem.Artist = artist 
 		musicItem.Album = *m.Album
-		musicItem.Tags = m.Tags
+		musicItem.Tags = tags
 		musicItem.UserId = m.UserID
 		musicList = append(musicList, musicItem)
 	}

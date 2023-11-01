@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/Kidsunbo/kie_toolbox_go/logs"
 	"github.com/XSource-Inc/feimusic-backend-music/db"
@@ -39,11 +40,12 @@ func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.Crea
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "该歌单已存在，请确认"}
 		return resp, nil
 	}
+	tags := strings.Join(in.Tags, ",")
 
 	newMusicList := &model.MusicList{
 		ListName:    in.ListName,
 		ListComment: in.ListComment,
-		Tags:        in.Tags,
+		Tags:        tags,
 		UserID:      userID,
 		Status:      1,
 	}
@@ -152,10 +154,14 @@ func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.Upda
 		}
 	}
 
+	var tags string
+
+	tags = strings.Join(in.Tags, ",")
+
 	updateData := map[string]any{}
-	utils.AddToMapIfNotNil(updateData, in.ListName, "listName")
+	updateData["tags"] = tags 
+	utils.AddToMapIfNotNil(updateData, in.ListName, "listName") 
 	utils.AddToMapIfNotNil(updateData, in.ListComment, "listComment")
-	utils.AddToMapIfNotNil(updateData, in.Tags, "tags") // TODO:错误，待修复
 
 	err = db.UpdateMusicList(ctx, listID, updateData)
 	if err != nil {
@@ -163,11 +169,11 @@ func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.Upda
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单信息更新失败"}
 		return resp, nil
 	}
-	// TODO：需要返listid吗？
+
 	return resp, nil
 }
 
-// TODO：没有处理已删除的音乐
+// TODO:目前没有返回歌单的基础信息,要做成两个接口还是一个接口呢？
 func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.GetMusicFromListRequest) (*music.GetMusicFromListResponse, error) {
 	resp := &music.GetMusicFromListResponse{}
 
@@ -198,7 +204,11 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有查看权限"}
 		return resp, nil
 	}
+	
+	// 获取歌单信息 
 
+
+	// 获取音乐信息
 	musicIDs, err := db.GetMusicFromList(ctx, in.ListId, 0) //TODO:创建常量
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to obtain music of music_list, list id=%v, err=%v", in.ListId, err)
@@ -323,7 +333,7 @@ func (ml *FeiMusicMusicList) RemoveMusicFromList(ctx context.Context, in *music.
 	}
 	
 	// 软删除
-	err = db.DeleteMusicFromList(ctx, in.ListId, in.MusicIds, 1)
+	err = db.BatchUpdateMusicStatus(ctx, in.ListId, in.MusicIds, 1)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music from the music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单中指定音乐失败"}

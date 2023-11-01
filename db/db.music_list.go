@@ -166,25 +166,13 @@ func AddMusicToList(ctx context.Context, listID string, musicIDs []string) error
 	return nil
 }
 
-func DeleteMusicFromList(ctx context.Context, listID string, musicIDs []string, status int32) error {
-	logs.CtxInfo(ctx, "[DB] delete music from playlist, music ids=%v, music list id=%v", musicIDs, listID)
-	var listMusic model.ListMusic
-	
-	res := db.Model(&listMusic).Where("list_id = ? and musicID IN ?", listID, musicIDs).Updates(map[string]any{"status": status})
-	if res.Error != nil {
-		logs.CtxWarn(ctx, "failed to delete music from music list, err=%v", res.Error)
-		return res.Error
-	}
-	return nil
-}
-
 // 批量修改歌单中歌曲的状态
 func BatchUpdateMusicStatus(ctx context.Context, listID string, musicIDs []string, status int32) error {
-	logs.CtxInfo(ctx, "[DB] update the status of music in the music list, music id in %v, music list id=%v", musicIDs, listID)
+	logs.CtxInfo(ctx, "[DB] update the status of music in the music list, music id in %v, music list id=%v, status=%v", musicIDs, listID, status)
 	ListMusic := model.ListMusic{}
 	err := db.Model(&ListMusic).Where("list_id = ? and music_id IN ?", listID, musicIDs).Update(map[string]any{"status": status}).Error
 	if err != nil {
-		logs.CtxWarn(ctx, "failed to delete music from music list, err=%v", err)
+		logs.CtxWarn(ctx, "failed to update music from music list, err=%v", err)
 		return err
 	}
 	return nil

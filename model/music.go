@@ -9,7 +9,7 @@ type Music struct {
 	MusicName string     `gorm:"music_name"`
 	Artist    string     `gorm:"artist"`
 	Album     *string    `gorm:"album"`
-	Tags      string     `gorm:"tags"` // TODO：改成string类型，存json，给idl的时候时要序列化
+	Tags      string     `gorm:"tags"` 
 	UserID    string     `gorm:"user_id"`
 	Status    int32      `gorm:"status"`
 	CreatedAt time.Time  `gorm:"createat"`

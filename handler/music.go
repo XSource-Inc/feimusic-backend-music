@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/Kidsunbo/kie_toolbox_go/logs"
@@ -15,29 +17,26 @@ import (
 )
 
 // TODO:需要学习如何加监控和追踪（已有，但是处理的感觉不太好）
-// TODO:参数的处理，例如去重前后空格，放在哪里处理呢？=》网关层
+
 type FeiMusicMusic struct {
 	music.UnimplementedFeiMusicMusicServer
 }
 
-// TODO:有些接口限制登陆后访问，有些接口不限制必须登陆才可访问，怎么做呢=>网关层控制的？
 func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest) (*music.AddMusicResponse, error) {
-	resp := &music.AddMusicResponse{BaseResp: &base.BaseResp{}}
+	resp := &music.AddMusicResponse{}
 	musicName := req.MusicName
+	sort.Strings(req.Artist)
+	artist := strings.Join(req.Artist, ",")
 	// 使用音乐名和歌手联合判重
 	// TODO：修改方案。
 	// 1、先校验音乐名+歌手名是否重复，重复则直接返回要求修改
 	// 2、幂等处理：请求参数增加字节流（音乐文件），先校验md5是否重复，重复不支持写入，直接报错，不重复就入库
-	err := db.JudgeMusicWithUniqueNameAndArtist(ctx, req.MusicName, req.Artist)
+	err := db.JudgeMusicWithUniqueNameAndArtist(ctx, musicName, artist)
 	if err == nil {
 		// 发现重名不支持添加
-		// logs.CtxWarn(ctx, "the music library already contains this singer's music, singer=%v, music name=%v", req.Artist, req.MusicName)
-		// resp.BaseResp =  &base.BaseResp{StatusCode: 1, StatusMessage: "音乐库已包含该歌手的这首音乐"}
-		// return resp, nil
-
-		// 或者发现重名后给歌名增加时间戳后缀
-		timeStamp := fmt.Sprintf("%d", time.Now().Unix())
-		musicName += timeStamp
+		logs.CtxWarn(ctx, "the music library already contains this singer's music, singer=%v, music name=%v", req.Artist, req.MusicName)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐重复，请修改音乐名后重新添加"}
+		return resp, nil
 	}
 
 	if err != nil && err != gorm.ErrRecordNotFound {
@@ -46,7 +45,7 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 		return resp, nil
 	}
 
-	userID := utils.GetValue(ctx, "user_id")
+	userID := req.UserId
 
 	newMusic := &model.Music{
 		MusicName: musicName,
