@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -24,44 +25,63 @@ type FeiMusicMusic struct {
 
 func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest) (*music.AddMusicResponse, error) {
 	resp := &music.AddMusicResponse{}
+	
+	
+	// 使用音乐名和歌手联合判重
+	// TODO：修改方案。使用歌手名和音乐名做联合主键，新增时如果重复会报错，不对音乐做重复处理（记录MD5还有必要吗）
+	// 2、幂等处理：请求参数增加字节流（音乐文件），先校验md5是否重复，重复不支持写入，直接报错，不重复就入库
+
+{
+	// err := db.JudgeMusicWithUniqueNameAndArtist(ctx, musicName, artist)
+	// if err == nil {
+	// 	// 发现重名不支持添加
+	// 	logs.CtxWarn(ctx, "the music library already contains this singer's music, singer=%v, music name=%v", req.Artist, req.MusicName)
+	// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐重复，请修改音乐名后重新添加"}
+	// 	return resp, nil
+	// }
+
+	// if err != nil && err != gorm.ErrRecordNotFound {
+	// 	logs.CtxWarn(ctx, "failed to create music, err=%v", err)
+	// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "添加音乐失败"}
+	// 	return resp, nil
+	// }
+}
+	
+	// 音乐数据构造
+	userID := req.UserId
+	if len(userID) == 0 { // TODO:这个校验应该挪到网关层吗
+		logs.CtxWarn(ctx, "failed to add music, because the user id was not obtained")
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "新增歌曲失败"}
+		return resp, errors.New("missing user id")
+	}
 	musicName := req.MusicName
 	sort.Strings(req.Artist)
 	artist := strings.Join(req.Artist, ",")
-	// 使用音乐名和歌手联合判重
-	// TODO：修改方案。
-	// 1、先校验音乐名+歌手名是否重复，重复则直接返回要求修改
-	// 2、幂等处理：请求参数增加字节流（音乐文件），先校验md5是否重复，重复不支持写入，直接报错，不重复就入库
-	err := db.JudgeMusicWithUniqueNameAndArtist(ctx, musicName, artist)
-	if err == nil {
-		// 发现重名不支持添加
-		logs.CtxWarn(ctx, "the music library already contains this singer's music, singer=%v, music name=%v", req.Artist, req.MusicName)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐重复，请修改音乐名后重新添加"}
-		return resp, nil
-	}
-
-	if err != nil && err != gorm.ErrRecordNotFound {
-		logs.CtxWarn(ctx, "failed to create music, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "添加音乐失败"}
-		return resp, nil
-	}
-
-	userID := req.UserId
+	tags := strings.Join(req.Tags, ",")
 
 	newMusic := &model.Music{
 		MusicName: musicName,
-		Artist:    req.Artist,
+		Artist:    artist,
 		Album:     req.Album,
-		Tags:      req.Tags,
+		Tags:      tags,
 		UserID:    userID,
 		Status:    0,
 	}
-	err = db.AddMusic(ctx, newMusic)
-	// TODO：音乐文件写入硬盘
+	
+	// 新增音乐
+	err := db.AddMusic(ctx, newMusic)
 	if err != nil {
-		logs.CtxWarn(ctx, "failed to create music, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "添加音乐失败"}
-		return resp, nil
+		if err == errors.New("duplicate entry"){
+			logs.CtxWarn(ctx, "failed to create music, err=%v", err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐重复，请确认后重新添加"}
+			return resp, nil
+		} else{
+			logs.CtxWarn(ctx, "failed to create music, err=%v", err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "添加音乐失败"}
+			return resp, nil
+		}
 	}
+	// TODO：新增音乐字节流字段，并把音乐文件写入硬盘
 
 	return resp, nil
 }

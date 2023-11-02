@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/Kidsunbo/kie_toolbox_go/logs"
@@ -41,10 +42,16 @@ func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName, musicArti
 
 func AddMusic(ctx context.Context, newMusic *model.Music) error {
 	logs.CtxInfo(ctx, "[DB] add music=%v", newMusic)
-	res := db.Create(newMusic)
-	if res.Error != nil {
-		logs.CtxWarn(ctx, "failed to add music, err=%v", res.Error)
-		return res.Error
+	err := db.Create(newMusic).Error
+
+	if err != nil {
+		if strings.Contains(err.Error(), "Duplicate entry") {
+			logs.CtxWarn(ctx, "the music library already contains this singer's music, singer=%v, music name=%v", newMusic.Artist, newMusic.MusicName)
+			return errors.New("duplicate entry")
+		} else {
+			logs.CtxWarn(ctx, "failed to add music, err=%v", err)
+			return err
+		}
 	}
 	return nil
 }
@@ -85,8 +92,6 @@ func GetMusicWithUniqueMusicID(ctx context.Context, musicID string) (*model.Musi
 	return &music, nil
 }
 
-
-
 func BatchGetMusicWithMsuicID(ctx context.Context, musicIDs []string) ([]*music.MusicItem, error) {
 	logs.CtxInfo(ctx, "[DB] batch get music with music id, music ids=%v", musicIDs)
 	var songs []model.Music
@@ -97,14 +102,14 @@ func BatchGetMusicWithMsuicID(ctx context.Context, musicIDs []string) ([]*music.
 		return musicList, err
 	}
 	var artist, tags []string
-	
+
 	for _, m := range songs {
 		artist = strings.Split(m.Artist, ",")
 		tags = strings.Split(m.Tags, ",")
 		var musicItem *music.MusicItem
 		musicItem.MusicId = m.MusicID
 		musicItem.MusicName = m.MusicName
-		musicItem.Artist = artist 
+		musicItem.Artist = artist
 		musicItem.Album = *m.Album
 		musicItem.Tags = tags
 		musicItem.UserId = m.UserID
@@ -112,5 +117,3 @@ func BatchGetMusicWithMsuicID(ctx context.Context, musicIDs []string) ([]*music.
 	}
 	return musicList, nil
 }
-
-
