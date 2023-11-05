@@ -56,9 +56,9 @@ func AddMusic(ctx context.Context, newMusic *model.Music) error {
 	return nil
 }
 
-func DeleteMusicWithID(ctx context.Context, musicID string) error {
+func DeleteMusicWithID(ctx context.Context, musicID, userID string) error {
 	logs.CtxInfo(ctx, "[DB] delete music=%v", musicID)
-	err := db.Table("music").Where("music_id = ?", musicID).Update(map[string]any{"status": 1}).Error
+	err := db.Table("music").Where("music_id = ? and user_id = ?", musicID, userID).UpdateColumn(map[string]any{"status": 1}).Error
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music, err=%v", err)
 		return err
@@ -69,7 +69,7 @@ func DeleteMusicWithID(ctx context.Context, musicID string) error {
 func UpdateMusic(ctx context.Context, musicID string, updateData map[string]any) error {
 	logs.CtxInfo(ctx, "[DB] update music, musid id=%v, data=%v", musicID, updateData)
 	var music model.Music
-	res := db.Model(&music).Where("music_id = ?", musicID).Updates(updateData)
+	res := db.Model(&music).Where("music_id = ?", musicID).UpdateColumns(updateData)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to update music, err=%v", res.Error)
 		return res.Error

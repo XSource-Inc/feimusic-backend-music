@@ -23,7 +23,7 @@ func IsDuplicateMusicList(ctx context.Context, listName, userID string) (bool, s
 	}
 
 	if musicList.ListID != "" {
-		return true, musicList.ListID, nil 
+		return true, musicList.ListID, nil
 	}
 	return false, "", nil
 }
@@ -33,7 +33,7 @@ func CreateMusicList(ctx context.Context, newMusicList *model.MusicList) (string
 	err := db.Create(newMusicList).Error
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
-		return "", err 
+		return "", err
 	}
 	return newMusicList.ListID, nil
 }
@@ -53,7 +53,7 @@ func GetUserIDWithListID(ctx context.Context, listID string) (string, error) {
 func DeleteMusicList(ctx context.Context, listID string) error {
 	logs.CtxInfo(ctx, "[DB] delete music list, list id=%v", listID)
 	musicList := model.MusicList{}
-	res := db.Model(&musicList).Where("list_id = ?", listID).Updates(map[string]any{"status": 1})
+	res := db.Model(&musicList).Where("list_id = ?", listID).UpdateColumn(map[string]any{"status": 1})
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music list, err=%v", res.Error)
 		return res.Error
@@ -65,7 +65,7 @@ func DeleteMusicList(ctx context.Context, listID string) error {
 func DeleteListMusic(ctx context.Context, listID string) error {
 	logs.CtxInfo(ctx, "[DB] delete music from specified music list, list id=%v", listID)
 	ListMusic := model.ListMusic{}
-	res := db.Model(&ListMusic).Where("list_id = ?", listID).Update(map[string]any{"status": 1}) // 这里的更新，gorm是加了事务的
+	res := db.Model(&ListMusic).Where("list_id = ?", listID).UpdateColumn(map[string]any{"status": 1}) // 这里的更新，gorm是加了事务的
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music from specified music list, err=%v", res.Error)
 		return res.Error
@@ -76,7 +76,7 @@ func DeleteListMusic(ctx context.Context, listID string) error {
 func UpdateMusicList(ctx context.Context, listID string, updateData map[string]any) error {
 	logs.CtxInfo(ctx, "[DB] update music list, musid list id=%v, data=%v", listID, updateData)
 	var musicList model.MusicList
-	res := db.Model(&musicList).Where("list_id = ?", listID).Updates(updateData)
+	res := db.Model(&musicList).Where("list_id = ?", listID).UpdateColumns(updateData)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to update music list, err=%v", res.Error)
 		return res.Error
@@ -95,7 +95,7 @@ func GetMusicFromList(ctx context.Context, listID string, status int32) ([]strin
 	} else {
 		err = db.Model(&model.ListMusic{}).Where("list_id = ? and status = ?", listID, status).Pluck("music_id", &Listmusic).Error
 	}
-	
+
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to get music from list, err=%v", err)
 		return nil, err
@@ -131,26 +131,26 @@ func JudgeMusicListWithListID(ctx context.Context, listID string) error {
 func AddMusicToList(ctx context.Context, listID string, musicIDs []string) error {
 	logs.CtxInfo(ctx, "[DB] add music to music list, list id=%v, music id=%v", listID, musicIDs)
 	/*
-	// 已删除的音乐, 和需要添加的音乐求交集，更新status为1
-	deleteMusicIDs, err := GetMusicFromList(ctx, listID, 1)
-	updateMusicIDs := utils.Intersection(deleteMusicIDs, musicIDs)
+		// 已删除的音乐, 和需要添加的音乐求交集，更新status为1
+		deleteMusicIDs, err := GetMusicFromList(ctx, listID, 1)
+		updateMusicIDs := utils.Intersection(deleteMusicIDs, musicIDs)
 
-	err = BatchUpdateMusicStatus(ctx, listID, updateMusicIDs, 0)
+		err = BatchUpdateMusicStatus(ctx, listID, updateMusicIDs, 0)
 
-	if err != nil {
-		logs.CtxWarn(ctx, "failed to append music ID to list, err=%v", err) // TODO:这里的处理不太合理，即使发生错误，也要继续后续的添加操作？
-		return err
-	}
+		if err != nil {
+			logs.CtxWarn(ctx, "failed to append music ID to list, err=%v", err) // TODO:这里的处理不太合理，即使发生错误，也要继续后续的添加操作？
+			return err
+		}
 
-	// 正常状态的音乐过滤掉已删除的音乐，得到otherMusicIDs
-	otherMusicIDs := utils.FilterItem(musicIDs, updateMusicIDs)
+		// 正常状态的音乐过滤掉已删除的音乐，得到otherMusicIDs
+		otherMusicIDs := utils.FilterItem(musicIDs, updateMusicIDs)
 
-	// otherMusicIDs直接添加，包括原来已存在和原来不存在的音乐 ==》这里处理的不对，gorm检测到冲突之后会报错
-	var listMusics []model.ListMusic
-	for _, musicID := range otherMusicIDs {
-		listMusics = append(listMusics, model.ListMusic{ListID: listID, MusicID: musicID, Status: 0})
-	}
-	err = db.Model(&model.ListMusic{}).Create(&listMusics).Error
+		// otherMusicIDs直接添加，包括原来已存在和原来不存在的音乐 ==》这里处理的不对，gorm检测到冲突之后会报错
+		var listMusics []model.ListMusic
+		for _, musicID := range otherMusicIDs {
+			listMusics = append(listMusics, model.ListMusic{ListID: listID, MusicID: musicID, Status: 0})
+		}
+		err = db.Model(&model.ListMusic{}).Create(&listMusics).Error
 	*/
 	var listMusics []model.ListMusic
 	for _, musicID := range musicIDs {
@@ -170,9 +170,30 @@ func AddMusicToList(ctx context.Context, listID string, musicIDs []string) error
 func BatchUpdateMusicStatus(ctx context.Context, listID string, musicIDs []string, status int32) error {
 	logs.CtxInfo(ctx, "[DB] update the status of music in the music list, music id in %v, music list id=%v, status=%v", musicIDs, listID, status)
 	ListMusic := model.ListMusic{}
-	err := db.Model(&ListMusic).Where("list_id = ? and music_id IN ?", listID, musicIDs).Update(map[string]any{"status": status}).Error
+	err := db.Model(&ListMusic).Where("list_id = ? and music_id IN ?", listID, musicIDs).UpdateColumn(map[string]any{"status": status}).Error
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to update music from music list, err=%v", err)
+		return err
+	}
+	return nil
+}
+
+func GetListWithUserID(ctx context.Context, userID string) ([]string, error) {
+	logs.CtxInfo(ctx, "[DB] get list id with user id, user id=%v", userID)
+	var lists []string
+	err := db.Model(&model.MusicList{}).Where("user_id = ?", userID).Pluck("list_id", &lists).Error
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to get list with user id, err=%v", err)
+		return lists, err
+	}
+	return lists, nil
+}
+
+func DeleteMusicFromList(ctx context.Context, musicID string,  listID []string) error {
+	logs.CtxInfo(ctx, "[DB] delete music from music list, music id=%v, list id=%v", musicID, listID)
+	err := db.Model(&model.ListMusic{}).Where("list_id in ? and music_id = ?", listID, musicID).UpdateColumn(map[string]any{"status": 1}).Error
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to delete music from list, err=%v", err)
 		return err
 	}
 	return nil

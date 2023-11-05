@@ -25,8 +25,7 @@ type FeiMusicMusic struct {
 
 func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest) (*music.AddMusicResponse, error) {
 	resp := &music.AddMusicResponse{}
-	
-	
+		
 	// 使用音乐名和歌手联合判重
 	// TODO：修改方案。使用歌手名和音乐名做联合主键，新增时如果重复会报错，不对音乐做重复处理（记录MD5还有必要吗）
 	// 2、幂等处理：请求参数增加字节流（音乐文件），先校验md5是否重复，重复不支持写入，直接报错，不重复就入库
@@ -67,10 +66,10 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 		UserID:    userID,
 		Status:    0,
 	}
-	
+
 	// 新增音乐
 	err := db.AddMusic(ctx, newMusic)
-	if err != nil {
+	if err != nil { // TODO：待升级，使用postgresql数据库
 		if err == errors.New("duplicate entry"){
 			logs.CtxWarn(ctx, "failed to create music, err=%v", err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐重复，请确认后重新添加"}
@@ -87,38 +86,64 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 }
 
 // TODO：遗漏一个重要逻辑，删除音乐的同时，怎么处理歌单中的音乐呢=》设置外键后，修改音乐状态，音乐列表和音乐的关联表的状态会自动修改
+// TODO：目前没支持做批量删除，后续需要时再添加
 func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicRequest) (*music.DeleteMusicResponse, error) {
-	resp := &music.DeleteMusicResponse{BaseResp: &base.BaseResp{}}
+	resp := &music.DeleteMusicResponse{}
 
-	//判断是否有删除权限，暂时处理成仅可删除本人上传的音乐
-	userID := utils.GetValue(ctx, "user_id")
-	//TODO：这里处理错误，因为ctx序列化是并不会序列化全部内容，而是规定的部分内容，user_id不在其中，这里应该让API层把user_id作为参数传输进来
-	// TODO：记录下这个问题
-	music, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId) // TODO：不单独写个函数了吧
-	userIDOfMusic := music.UserID
-	if err != nil {
-		// 检查要删除的音乐是否存在
-		if err == gorm.ErrRecordNotFound {
-			logs.CtxWarn(ctx, "the music to be deleted does not exist, music id=%v", req.MusicId)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要删除的音乐不存在"}
-			return resp, nil
-		} else {
-			logs.CtxWarn(ctx, "failed to delete music, err=%v", err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除音乐失败"}
-			return resp, nil
-		}
+	//判断是否有删除权限，目前处理成仅可删除本人上传的音乐
+	userID := req.UserId
+	if len(userID) == 0 {
+		logs.CtxWarn(ctx, "failed to delete music, because the user id was not obtained")
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌曲失败"}
+		return resp, errors.New("missing user id")
 	}
-	if userID != userIDOfMusic {
-		logs.CtxWarn(ctx, "currently, deleting music uploaded by others is not supported, music id=%v, operator id=%v", req.MusicId, userID)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "暂不支持删除他人上传的音乐"}
-		return resp, nil
-	}
+	
+	// 冗余的逻辑
+	// music, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId) // TODO：不单独写个函数了吧
+	// userIDOfMusic := music.UserID
+	// if err != nil {
+	// 	// 检查要删除的音乐是否存在
+	// 	if err == gorm.ErrRecordNotFound {
+	// 		logs.CtxWarn(ctx, "the music to be deleted does not exist, music id=%v", req.MusicId)
+	// 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要删除的音乐不存在"}
+	// 		return resp, nil
+	// 	} else {
+	// 		logs.CtxWarn(ctx, "failed to delete music, err=%v", err)
+	// 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除音乐失败"}
+	// 		return resp, nil
+	// 	}
+	// }
+	// if userID != userIDOfMusic {
+	// 	logs.CtxWarn(ctx, "currently, deleting music uploaded by others is not supported, music id=%v, operator id=%v", req.MusicId, userID)
+	// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "暂不支持删除他人上传的音乐"}
+	// 	return resp, nil
+	// }
 
 	//处理成软删除
-	err = db.DeleteMusicWithID(ctx, req.MusicId)
+	err := db.DeleteMusicWithID(ctx, req.MusicId, userID)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除音乐失败"}
+		return resp, nil
+	}
+
+	// TODO：先直接处理，外键那个后边看
+	listID, err := db.GetListWithUserID(ctx, userID)
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to delete music, err=%v", err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除音乐失败"} // TODO:这里的处理合适吗，前序删除已经成功了
+		return resp, nil
+	}
+	if len(listID) == 0 {
+		// TODO:怎么处理呢
+		logs.CtxWarn(ctx, "the user does not have a music list, user_id=%v", userID)
+		return resp, nil
+	}
+
+	err = db.DeleteMusicFromList(ctx, req.MusicId, listID)
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to delete music, err=%v", err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除音乐失败"} // TODO:这里的处理合适吗，前序删除已经成功了
 		return resp, nil
 	}
 
