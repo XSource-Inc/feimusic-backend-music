@@ -228,7 +228,7 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 	err := db.UpdateMusic(ctx, req.MusicId, updateData)
 	if err != nil {
 		// TODO:这里应该做唯一索引冲突的判断，但是目前找不到对应的错误，应该是gorm版本的问题
-		// if errors.Is(err, gorm.err)
+		// if errors.Is(err, gorm.er)
 		// 多个位置调用update music，下面这行日志可以用来区分调用的位置
 		logs.CtxWarn(ctx, "failed to update music, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐更新失败"}
@@ -266,10 +266,10 @@ func (m *FeiMusicMusic) SearchMusic(ctx context.Context, req *music.SearchMusicR
 
 	return nil, nil
 }
-
+//TODO:还差个音乐资源
 func (m *FeiMusicMusic) GetMusic(ctx context.Context, req *music.GetMusicRequest) (*music.GetMusicResponse, error) {
-	resp := &music.GetMusicResponse{BaseResp: &base.BaseResp{}}
-	// TODO:还没有赋初值
+	resp := &music.GetMusicResponse{}
+
 	music, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -283,22 +283,22 @@ func (m *FeiMusicMusic) GetMusic(ctx context.Context, req *music.GetMusicRequest
 		}
 	}
 
-	// 防御式编程，避免gorm不符预期
-	// TODO:检查一下是不是还有别的地方要补充防御式代码
 	if music == nil {
 		logs.CtxWarn(ctx, "failed to get music, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取音乐失败"}
 		return resp, nil
 	}
 
+	artist := strings.Split(music.Artist, ",")
+	tags := strings.Split(music.Tags, ",")
 	resp.MusicId = music.MusicID
 	resp.MusicName = music.MusicName
-	resp.Artist = music.Artist
+	resp.Artist = artist
 	resp.Album = *music.Album
-	resp.Tags = music.Tags
+	resp.Tags = tags
 	resp.UserId = music.UserID
 
-	resp.Url = temp("根据音乐信息生成音乐路径") // TODO:根据音乐信息生成音乐路径。存储路径+MD5
+	// resp.Url = temp("根据音乐信息生成音乐路径") // TODO:根据音乐信息生成音乐路径。存储路径+MD5
 
 	return resp, nil
 }
