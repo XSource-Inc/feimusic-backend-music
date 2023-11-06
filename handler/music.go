@@ -152,74 +152,83 @@ func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicR
 
 func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicRequest) (*music.UpdateMusicResponse, error) {
 	// TODO:代码结构拆分，目前全写在这一个函数中了
-	resp := &music.UpdateMusicResponse{BaseResp: &base.BaseResp{}}
-	//权限限制：暂定仅歌曲上传人可修改歌曲
-	userID := utils.GetValue(ctx, "user_id")
-	music, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId)
-	if err != nil {
-		logs.CtxWarn(ctx, "failed to update music, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新音乐失败"}
-		return resp, nil
-	}
-	userIDOfMusic := music.UserID
-	if err != nil {
-		// 检查要更新的音乐是否存在
-		if err == gorm.ErrRecordNotFound {
-			logs.CtxWarn(ctx, "the music to be updated does not exist, music id=%v", req.MusicId)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要更新的音乐不存在"}
-			return resp, nil
-		} else {
-			logs.CtxWarn(ctx, "failed to update music, err=%v", err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新音乐失败"}
-			return resp, nil
-		}
-	}
-	if userID != userIDOfMusic {
-		logs.CtxWarn(ctx, "currently, update music uploaded by others is not supported, music id=%v, operator id=%v", req.MusicId, userID)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "暂不支持更新他人上传的音乐"}
-		return resp, nil
-	}
+	resp := &music.UpdateMusicResponse{}
+	//权限限制：先不做本人权限限制了
+	// userID := req.UserId
+	// if len(userID) == 0 { 
+	// 	logs.CtxWarn(ctx, "failed to update music, because the user id was not obtained")
+	// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌曲失败"}
+	// 	return resp, errors.New("missing user id")
+	// }
+	// music, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId)
+	// if err != nil {
+	// 	logs.CtxWarn(ctx, "failed to update music, err=%v", err)
+	// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新音乐失败"}
+	// 	return resp, nil
+	// }
+	// userIDOfMusic := music.UserID
+	// if err != nil {
+	// 	// 检查要更新的音乐是否存在
+	// 	if err == gorm.ErrRecordNotFound {
+	// 		logs.CtxWarn(ctx, "the music to be updated does not exist, music id=%v", req.MusicId)
+	// 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要更新的音乐不存在"}
+	// 		return resp, nil
+	// 	} else {
+	// 		logs.CtxWarn(ctx, "failed to update music, err=%v", err)
+	// 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新音乐失败"}
+	// 		return resp, nil
+	// 	}
+	// }
+	// if userID != userIDOfMusic {
+	// 	logs.CtxWarn(ctx, "currently, update music uploaded by others is not supported, music id=%v, operator id=%v", req.MusicId, userID)
+	// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "暂不支持更新他人上传的音乐"}
+	// 	return resp, nil
+	// }
 
 	// 做变更后的唯一性判断
 	// TODO:也可以把这部分工作交给数据库做
-	var (
-		change    bool
-		musicName string   = *req.MusicName
-		artist    []string = req.Artist
-	)
+	// var (
+	// 	change    bool
+	// 	musicName string   = *req.MusicName
+	// 	artist    []string = req.Artist
+	// )
 
-	if musicName != "" && artist != nil {
-		change = true
-	} else if musicName != "" {
-		change = true
-		artist = music.Artist
-	} else if artist != nil {
-		change = true
-		musicName = music.MusicName
-	}
-	if change {
-		err = db.JudgeMusicWithUniqueNameAndArtist(ctx, musicName, artist)
-		if err == nil {
-			timeStamp := fmt.Sprintf("%d", time.Now().Unix())
-			musicName += timeStamp
-			// TODO：待修改，直接报错
-		}
+	// if musicName != "" && artist != nil {
+	// 	change = true
+	// } else if musicName != "" {
+	// 	change = true
+	// 	artist = music.Artist
+	// } else if artist != nil {
+	// 	change = true
+	// 	musicName = music.MusicName
+	// }
+	// if change {
+	// 	err = db.JudgeMusicWithUniqueNameAndArtist(ctx, musicName, artist)
+	// 	if err == nil {
+	// 		timeStamp := fmt.Sprintf("%d", time.Now().Unix())
+	// 		musicName += timeStamp
+	// 		// TODO：待修改，直接报错
+	// 	}
 
-		if err != nil && err != gorm.ErrRecordNotFound {
-			logs.CtxWarn(ctx, "failed to update music, err=%v", err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐更新失败"}
-			return resp, nil
-		}
-	}
+	// 	if err != nil && err != gorm.ErrRecordNotFound {
+	// 		logs.CtxWarn(ctx, "failed to update music, err=%v", err)
+	// 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐更新失败"}
+	// 		return resp, nil
+	// 	}
+	// }
 
 	updateData := map[string]any{}
+	tags := strings.Join(req.Tags, ",")
+	updateData["tags"] = tags
+	artist := strings.Join(req.Artist, ",")
+	updateData["artist"] = artist
 	utils.AddToMapIfNotNil(updateData, req.MusicName, "music_name")
 	utils.AddToMapIfNotNil(updateData, req.Album, "album")
-	utils.AddToMapIfNotNil(updateData, req.Tags, "tags")
-	utils.AddToMapIfNotNil(updateData, req.Artist, "artist") // TODO：把[]string转成string再存
 
-	err = db.UpdateMusic(ctx, req.MusicId, updateData)
+	err := db.UpdateMusic(ctx, req.MusicId, updateData)
 	if err != nil {
+		// TODO:这里应该做唯一索引冲突的判断，但是目前找不到对应的错误，应该是gorm版本的问题
+		// if errors.Is(err, gorm.err)
 		// 多个位置调用update music，下面这行日志可以用来区分调用的位置
 		logs.CtxWarn(ctx, "failed to update music, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐更新失败"}
