@@ -77,8 +77,44 @@ func UpdateMusic(ctx context.Context, musicID string, updateData map[string]any)
 	return nil
 }
 
-func SearchMusic(ctx context.Context, req *music.SearchMusicRequest) (*[]model.Music, int64, error) { //加*吗
-	return nil, 0, nil
+func SearchMusic(ctx context.Context, req *music.SearchMusicRequest) (*[]model.Music, int64, error) {
+	query := db.Model(&model.Music{})
+
+	if req.MusicName != nil {
+		query = query.Where("music_name = ?", req.MusicName) //TODO：后边要支持模糊查询
+	}
+
+	if req.Artist != nil {
+		query = query.Where("artist LIKE ?", "%"+*req.Artist+"%") //TODO:这里是不是需要优化数据表结构，还是就用like
+	}
+
+	if req.UserId != nil {
+		query = query.Where("user_id = ?", req.UserId) // TODO:gorm会自动解引用吗？
+	}
+
+	if req.Tags != nil {
+		query = query.Where("tags LIKE ?", "%"+*req.Tags+"%")
+	}
+
+	if req.Album != nil {
+		query = query.Where("album = ?", req.Album)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		logs.CtxWarn(ctx, "failed to search music, err=%v", err)
+		return nil, 0, err
+	}
+
+	query = query.Limit(req.Limit).Offset(req.Offset)
+
+	var music []model.Music
+	if err := query.Find(&music).Error; err != nil {
+		logs.CtxWarn(ctx, "failed to search music, err=%v", err)
+		return nil, 0, err
+	}
+
+	return &music, total, nil //TODO:这里返回指针类型好吗（造成变量逃逸）
 }
 
 func GetMusicWithUniqueMusicID(ctx context.Context, musicID string) (*model.Music, error) {

@@ -241,16 +241,28 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 // TODO:这个接口还没写, 分页、查询
 func (m *FeiMusicMusic) SearchMusic(ctx context.Context, req *music.SearchMusicRequest) (*music.SearchMusicResponse, error) {
 
-	resp := &music.SearchMusicResponse{BaseResp: &base.BaseResp{}}
-	music_list, total, err := db.SearchMusic(ctx, req) // total如果用的是int64，那说明musicid也可以用int64
+	resp := &music.SearchMusicResponse{}
+	music_list, total, err := db.SearchMusic(ctx, req) 
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to search music")
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "?"}
-		return nil, err
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "搜索音乐失败"}
+		return resp, nil // TODO:不太对劲，error全返回nil了，这个变量还有啥意义
 	}
-	// MusicList []*MusicItem  不会写了 music_list怎么转成MusicList?for 循环把model.music转成MusicItem?
 
-	// musicItem中有musicID!!!!!!
+	music_items := []music.MusicItem{}
+	for _, music := range *music_list {
+		music_item := music.MusicItem{}
+		music_item.MusicId = music.MusicID
+		music_item.MusicName = music.MusicName
+		music_item.Artist = strings.Split(music.Artist, ",")
+		music_item.Album = music.Album
+		music_item.Tags = strings.Split(music.Tags, ",")
+		music_item.UserId = music.UserID
+		music_items = append(music_items, music_item)
+ 	}
+
+	resp.MusicList = music_items
+	resp.Total = total
 	// type MusicItem struct {
 	// 	state         protoimpl.MessageState
 	// 	sizeCache     protoimpl.SizeCache
@@ -264,7 +276,7 @@ func (m *FeiMusicMusic) SearchMusic(ctx context.Context, req *music.SearchMusicR
 	// 	UserId    string   `protobuf:"bytes,6,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	// }
 
-	return nil, nil
+	return resp, nil
 }
 //TODO:还差个音乐资源
 func (m *FeiMusicMusic) GetMusic(ctx context.Context, req *music.GetMusicRequest) (*music.GetMusicResponse, error) {
