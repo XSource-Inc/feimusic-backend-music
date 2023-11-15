@@ -3,10 +3,8 @@ package handler
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/Kidsunbo/kie_toolbox_go/logs"
 	"github.com/XSource-Inc/feimusic-backend-music/db"
@@ -25,27 +23,27 @@ type FeiMusicMusic struct {
 
 func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest) (*music.AddMusicResponse, error) {
 	resp := &music.AddMusicResponse{}
-		
+
 	// 使用音乐名和歌手联合判重
 	// TODO：修改方案。使用歌手名和音乐名做联合主键，新增时如果重复会报错，不对音乐做重复处理（记录MD5还有必要吗）
 	// 2、幂等处理：请求参数增加字节流（音乐文件），先校验md5是否重复，重复不支持写入，直接报错，不重复就入库
 
-{
-	// err := db.JudgeMusicWithUniqueNameAndArtist(ctx, musicName, artist)
-	// if err == nil {
-	// 	// 发现重名不支持添加
-	// 	logs.CtxWarn(ctx, "the music library already contains this singer's music, singer=%v, music name=%v", req.Artist, req.MusicName)
-	// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐重复，请修改音乐名后重新添加"}
-	// 	return resp, nil
-	// }
+	{
+		// err := db.JudgeMusicWithUniqueNameAndArtist(ctx, musicName, artist)
+		// if err == nil {
+		// 	// 发现重名不支持添加
+		// 	logs.CtxWarn(ctx, "the music library already contains this singer's music, singer=%v, music name=%v", req.Artist, req.MusicName)
+		// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐重复，请修改音乐名后重新添加"}
+		// 	return resp, nil
+		// }
 
-	// if err != nil && err != gorm.ErrRecordNotFound {
-	// 	logs.CtxWarn(ctx, "failed to create music, err=%v", err)
-	// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "添加音乐失败"}
-	// 	return resp, nil
-	// }
-}
-	
+		// if err != nil && err != gorm.ErrRecordNotFound {
+		// 	logs.CtxWarn(ctx, "failed to create music, err=%v", err)
+		// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "添加音乐失败"}
+		// 	return resp, nil
+		// }
+	}
+
 	// 音乐数据构造
 	userID := req.UserId
 	if len(userID) == 0 { // TODO:这个校验应该挪到网关层吗
@@ -61,7 +59,7 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 	newMusic := &model.Music{
 		MusicName: musicName,
 		Artist:    artist,
-		Album:     req.Album,
+		Album:     req.Album, 
 		Tags:      tags,
 		UserID:    userID,
 		Status:    0,
@@ -70,11 +68,11 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 	// 新增音乐
 	err := db.AddMusic(ctx, newMusic)
 	if err != nil { // TODO：待升级，使用postgresql数据库
-		if err == errors.New("duplicate entry"){
+		if err == errors.New("duplicate entry") {
 			logs.CtxWarn(ctx, "failed to create music, err=%v", err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "音乐重复，请确认后重新添加"}
 			return resp, nil
-		} else{
+		} else {
 			logs.CtxWarn(ctx, "failed to create music, err=%v", err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "添加音乐失败"}
 			return resp, nil
@@ -97,7 +95,7 @@ func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicR
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌曲失败"}
 		return resp, errors.New("missing user id")
 	}
-	
+
 	// 冗余的逻辑
 	// music, err := db.GetMusicWithUniqueMusicID(ctx, req.MusicId) // TODO：不单独写个函数了吧
 	// userIDOfMusic := music.UserID
@@ -155,7 +153,7 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 	resp := &music.UpdateMusicResponse{}
 	//权限限制：先不做本人权限限制了
 	// userID := req.UserId
-	// if len(userID) == 0 { 
+	// if len(userID) == 0 {
 	// 	logs.CtxWarn(ctx, "failed to update music, because the user id was not obtained")
 	// 	resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌曲失败"}
 	// 	return resp, errors.New("missing user id")
@@ -238,46 +236,34 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 	return resp, nil
 }
 
-// TODO:这个接口还没写, 分页、查询
 func (m *FeiMusicMusic) SearchMusic(ctx context.Context, req *music.SearchMusicRequest) (*music.SearchMusicResponse, error) {
 
 	resp := &music.SearchMusicResponse{}
-	music_list, total, err := db.SearchMusic(ctx, req) 
+	musicList, total, err := db.SearchMusic(ctx, req)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to search music")
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "搜索音乐失败"}
 		return resp, nil // TODO:不太对劲，error全返回nil了，这个变量还有啥意义
 	}
 
-	music_items := []music.MusicItem{}
-	for _, music := range *music_list {
-		music_item := music.MusicItem{}
-		music_item.MusicId = music.MusicID
-		music_item.MusicName = music.MusicName
-		music_item.Artist = strings.Split(music.Artist, ",")
-		music_item.Album = music.Album
-		music_item.Tags = strings.Split(music.Tags, ",")
-		music_item.UserId = music.UserID
-		music_items = append(music_items, music_item)
- 	}
+	musicItems := []*music.MusicItem{} 
+	for _, m := range *musicList {
+		musicItem := music.MusicItem{}
+		musicItem.MusicId = m.MusicID
+		musicItem.MusicName = m.MusicName
+		musicItem.Artist = strings.Split(m.Artist, ",")
+		musicItem.Album = m.Album 
+		musicItem.Tags = strings.Split(m.Tags, ",")
+		musicItem.UserId = m.UserID
+		musicItems = append(musicItems, &musicItem)
+	}
 
-	resp.MusicList = music_items
+	resp.MusicList = musicItems
 	resp.Total = total
-	// type MusicItem struct {
-	// 	state         protoimpl.MessageState
-	// 	sizeCache     protoimpl.SizeCache
-	// 	unknownFields protoimpl.UnknownFields
-
-	// 	MusicId   string   `protobuf:"bytes,1,opt,name=music_id,json=musicId,proto3" json:"music_id,omitempty"`
-	// 	MusicName string   `protobuf:"bytes,2,opt,name=music_name,json=musicName,proto3" json:"music_name,omitempty"`
-	// 	Artist    []string `protobuf:"bytes,3,rep,name=artist,proto3" json:"artist,omitempty"`
-	// 	Album     string   `protobuf:"bytes,4,opt,name=album,proto3" json:"album,omitempty"`
-	// 	Tags      []string `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`
-	// 	UserId    string   `protobuf:"bytes,6,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	// }
 
 	return resp, nil
 }
+
 //TODO:还差个音乐资源
 func (m *FeiMusicMusic) GetMusic(ctx context.Context, req *music.GetMusicRequest) (*music.GetMusicResponse, error) {
 	resp := &music.GetMusicResponse{}
