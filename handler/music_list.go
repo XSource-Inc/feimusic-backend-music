@@ -11,7 +11,7 @@ import (
 	"github.com/XSource-Inc/feimusic-backend-music/utils"
 	"github.com/XSource-Inc/grpc_idl/go/proto_gen/base"
 	"github.com/XSource-Inc/grpc_idl/go/proto_gen/fei_music/music"
-	"github.com/jinzhu/gorm"
+	"github.com/jinzhu/gorm" // todo:这里咋报错了呢
 )
 
 type FeiMusicMusicList struct {
@@ -159,8 +159,8 @@ func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.Upda
 	tags = strings.Join(in.Tags, ",")
 
 	updateData := map[string]any{}
-	updateData["tags"] = tags 
-	utils.AddToMapIfNotNil(updateData, in.ListName, "listName") 
+	updateData["tags"] = tags
+	utils.AddToMapIfNotNil(updateData, in.ListName, "listName")
 	utils.AddToMapIfNotNil(updateData, in.ListComment, "listComment")
 
 	err = db.UpdateMusicList(ctx, listID, updateData)
@@ -204,9 +204,8 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有查看权限"}
 		return resp, nil
 	}
-	
-	// 获取歌单信息 
 
+	// 获取歌单信息
 
 	// 获取音乐信息
 	musicIDs, err := db.GetMusicFromList(ctx, in.ListId, 0) //TODO:创建常量
@@ -331,7 +330,7 @@ func (ml *FeiMusicMusicList) RemoveMusicFromList(ctx context.Context, in *music.
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有删除权限"}
 		return resp, nil
 	}
-	
+
 	// 软删除
 	err = db.BatchUpdateMusicStatus(ctx, in.ListId, in.MusicIds, 1)
 	if err != nil {

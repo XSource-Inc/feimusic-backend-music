@@ -8,6 +8,7 @@ import (
 	"github.com/Kidsunbo/kie_toolbox_go/logs"
 	"github.com/XSource-Inc/feimusic-backend-music/model"
 	"github.com/XSource-Inc/grpc_idl/go/proto_gen/fei_music/music"
+	"gorm.io/gorm"
 )
 
 func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName, musicArtist string) error {
@@ -45,20 +46,17 @@ func AddMusic(ctx context.Context, newMusic *model.Music) error {
 	err := db.Create(newMusic).Error
 
 	if err != nil {
-		if strings.Contains(err.Error(), "Duplicate entry") {
-			logs.CtxWarn(ctx, "the music library already contains this singer's music, singer=%v, music name=%v", newMusic.Artist, newMusic.MusicName)
-			return errors.New("duplicate entry")
-		} else {
-			logs.CtxWarn(ctx, "failed to add music, err=%v", err)
-			return err
-		}
+		logs.CtxWarn(ctx, "failed to add music, err=%v", err)
+		return err
 	}
+
 	return nil
 }
 
+//TODO：更新状态，或者更新表字段，统一抽象成一个方法？
 func DeleteMusicWithID(ctx context.Context, musicID, userID string) error {
 	logs.CtxInfo(ctx, "[DB] delete music=%v", musicID)
-	err := db.Table("music").Where("music_id = ? and user_id = ?", musicID, userID).UpdateColumn(map[string]any{"status": 1}).Error
+	err := db.Table("music").Where("music_id = ? and user_id = ?", musicID, userID).Update("status", 1).Error
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music, err=%v", err)
 		return err
@@ -146,7 +144,7 @@ func BatchGetMusicWithMsuicID(ctx context.Context, musicIDs []string) ([]*music.
 		musicItem.MusicId = m.MusicID
 		musicItem.MusicName = m.MusicName
 		musicItem.Artist = artist
-		musicItem.Album = *m.Album
+		musicItem.Album = m.Album
 		musicItem.Tags = tags
 		musicItem.UserId = m.UserID
 		musicList = append(musicList, musicItem)

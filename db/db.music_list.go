@@ -188,10 +188,10 @@ func GetListWithUserID(ctx context.Context, userID string) ([]string, error) {
 	}
 	return lists, nil
 }
-
-func DeleteMusicFromList(ctx context.Context, musicID string,  listID []string) error {
-	logs.CtxInfo(ctx, "[DB] delete music from music list, music id=%v, list id=%v", musicID, listID)
-	err := db.Model(&model.ListMusic{}).Where("list_id in ? and music_id = ?", listID, musicID).UpdateColumn(map[string]any{"status": 1}).Error
+//TODO：不同的表的update是不是也可以抽象到一起？
+func DeleteMusicFromList(ctx context.Context, musicID string) error {
+	logs.CtxInfo(ctx, "[DB] delete music from music list, music id=%v", musicID)
+	err := db.Model(&model.ListMusic{}).Where("music_id = ?", musicID).Update("status", 1).Error
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music from list, err=%v", err)
 		return err
