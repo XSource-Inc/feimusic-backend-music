@@ -1,12 +1,9 @@
 package db
 
-// 这里写什么呢
 import (
-	"fmt"
-
 	"github.com/Kidsunbo/kie_toolbox_go/logs"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/jinzhu/gorm"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type mysqlModel struct {
@@ -23,7 +20,7 @@ type mysqlModel struct {
 }
 
 var db *gorm.DB
-var mysqlConfig = mysqlModel{ 
+var mysqlConfig = mysqlModel{
 	Host:        "127.0.0.1",
 	Port:        3308,
 	User:        "root",
@@ -35,29 +32,27 @@ var mysqlConfig = mysqlModel{
 	IsPlural:    true,
 }
 
-func MustInit() error{
+func MustInit() error {
 	var err error
-	dsn := fmt.Sprintf("%s:%s@(%s:%d)/%s?charset=utf8&parseTime=True",
-		mysqlConfig.User,
-		mysqlConfig.Password,
-		mysqlConfig.Host,
-		mysqlConfig.Port,
-		mysqlConfig.Database,
-)	
 
-	db, err = gorm.Open("mysql", dsn)
-	if err != nil{
+	dsn := "host=localhost user=gorm password=gorm dbname=gorm port=9920 sslmode=disable TimeZone=Asia/Shanghai"
+	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+
+	if err != nil {
 		logs.Fatal("failed to connect database, err=%v", err)
 		return err
 
 	}
 
-	if db.Error != nil{
+	if db.Error != nil {
 		//没理解这里有两个error
 		logs.Fatal("failed to connect database, err=%v", db.Error)
 		return db.Error
 	}
 
-	return nil 
+	return nil
+}
 
+func GetDB() *gorm.DB {
+	return db
 }

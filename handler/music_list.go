@@ -11,7 +11,7 @@ import (
 	"github.com/XSource-Inc/feimusic-backend-music/utils"
 	"github.com/XSource-Inc/grpc_idl/go/proto_gen/base"
 	"github.com/XSource-Inc/grpc_idl/go/proto_gen/fei_music/music"
-	"github.com/jinzhu/gorm" // todo:这里咋报错了呢
+	"gorm.io/gorm"
 )
 
 type FeiMusicMusicList struct {

@@ -11,7 +11,7 @@ type Music struct {
 	Album     string    `gorm:"album"`
 	Tags      string    `gorm:"tags"`
 	UserID    int64     `gorm:"user_id"`
-	MD5       string    `gorm:"md5"`
+	MD5       string    `gorm:"md5"` // 唯一索引
 	Status    int16     `gorm:"status"`
 	CreatedAt time.Time `gorm:"createat"`
 	UpdatedAt time.Time `gorm:"updateat"`
