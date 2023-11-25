@@ -151,9 +151,7 @@ func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.Upda
 		}
 	}
 
-	var tags string
-
-	tags = strings.Join(in.Tags, ",")
+	tags := strings.Join(in.Tags, ",")
 
 	updateData := map[string]any{}
 	updateData["tags"] = tags
