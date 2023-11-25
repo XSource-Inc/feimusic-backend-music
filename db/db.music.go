@@ -2,13 +2,10 @@ package db
 
 import (
 	"context"
-	"errors"
 	"strings"
-
 	"github.com/Kidsunbo/kie_toolbox_go/logs"
 	"github.com/XSource-Inc/feimusic-backend-music/model"
 	"github.com/XSource-Inc/grpc_idl/go/proto_gen/fei_music/music"
-	"gorm.io/gorm"
 )
 
 func JudgeMusicWithUniqueNameAndArtist(ctx context.Context, musicName, musicArtist string) error {
@@ -54,7 +51,7 @@ func AddMusic(ctx context.Context, newMusic *model.Music) error {
 }
 
 //TODO：更新状态，或者更新表字段，统一抽象成一个方法？
-func DeleteMusicWithID(ctx context.Context, musicID, userID string) error {
+func DeleteMusicWithID(ctx context.Context, musicID, userID int64) error {
 	logs.CtxInfo(ctx, "[DB] delete music=%v", musicID)
 	err := db.Table("music").Where("music_id = ? and user_id = ?", musicID, userID).Update("status", 1).Error
 	if err != nil {
@@ -64,7 +61,7 @@ func DeleteMusicWithID(ctx context.Context, musicID, userID string) error {
 	return nil
 }
 
-func UpdateMusic(ctx context.Context, musicID string, updateData map[string]any) error {
+func UpdateMusic(ctx context.Context, musicID int64, updateData map[string]any) error {
 	logs.CtxInfo(ctx, "[DB] update music, musid id=%v, data=%v", musicID, updateData)
 	var music model.Music
 	res := db.Model(&music).Where("music_id = ?", musicID).UpdateColumns(updateData)
@@ -104,7 +101,7 @@ func SearchMusic(ctx context.Context, req *music.SearchMusicRequest) (*[]model.M
 		return nil, 0, err
 	}
 
-	query = query.Limit(req.Limit).Offset(req.Offset)
+	query = query.Limit(req.Size).Offset(req.Page * req.Size)
 
 	var music []model.Music
 	if err := query.Find(&music).Error; err != nil {
@@ -115,7 +112,7 @@ func SearchMusic(ctx context.Context, req *music.SearchMusicRequest) (*[]model.M
 	return &music, total, nil //TODO:这里返回指针类型好吗（造成变量逃逸）
 }
 
-func GetMusicWithUniqueMusicID(ctx context.Context, musicID string) (*model.Music, error) {
+func GetMusicWithUniqueMusicID(ctx context.Context, musicID int64) (*model.Music, error) {
 	logs.CtxInfo(ctx, "[DB] get music, musid id=%v", musicID)
 	var music model.Music
 	err := db.First(&music, musicID).Error

@@ -9,48 +9,48 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-func IsDuplicateMusicList(ctx context.Context, listName, userID string) (bool, string, error) {
+func IsDuplicateMusicList(ctx context.Context, listName string, userID int64) (bool, int64, error) {
 	logs.CtxInfo(ctx, "[DB] determine if the song title is duplicated, list name=%v, user=%v", listName, userID)
 	musicList := &model.MusicList{}
 	err := db.Table("music_list").Where("list_name = ? and user_id = ?", listName, userID).First(&musicList).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return false, "", nil
+			return false, 0, nil
 		} else {
 			logs.CtxWarn(ctx, "failed to get music list, err=%v", err)
-			return false, "", err
+			return false, 0, err
 		}
 	}
 
-	if musicList.ListID != "" {
+	if musicList.ListID != 0 {
 		return true, musicList.ListID, nil
 	}
-	return false, "", nil
+	return false, 0, nil
 }
 
-func CreateMusicList(ctx context.Context, newMusicList *model.MusicList) (string, error) {
+func CreateMusicList(ctx context.Context, newMusicList *model.MusicList) (int64, error) {
 	logs.CtxInfo(ctx, "[DB] create music list, data=%v", newMusicList)
 	err := db.Create(newMusicList).Error
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
-		return "", err
+		return 0, err
 	}
 	return newMusicList.ListID, nil
 }
 
-func GetUserIDWithListID(ctx context.Context, listID string) (string, error) {
+func GetUserIDWithListID(ctx context.Context, listID int64) (int64, error) {
 	logs.CtxInfo(ctx, "[DB] get user id with music list id, list id=%v", listID)
 	musicList := model.MusicList{ListID: listID}
 	res := db.First(&musicList)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to get user id of music list, err=%v", res.Error)
-		return "", res.Error
+		return 0, res.Error
 	}
 	return musicList.UserID, nil
 }
 
 // 删除歌单
-func DeleteMusicList(ctx context.Context, listID string) error {
+func DeleteMusicList(ctx context.Context, listID int64) error {
 	logs.CtxInfo(ctx, "[DB] delete music list, list id=%v", listID)
 	musicList := model.MusicList{}
 	res := db.Model(&musicList).Where("list_id = ?", listID).UpdateColumn(map[string]any{"status": 1})
@@ -62,7 +62,7 @@ func DeleteMusicList(ctx context.Context, listID string) error {
 }
 
 // 删除歌单下音乐
-func DeleteListMusic(ctx context.Context, listID string) error {
+func DeleteListMusic(ctx context.Context, listID int64) error {
 	logs.CtxInfo(ctx, "[DB] delete music from specified music list, list id=%v", listID)
 	ListMusic := model.ListMusic{}
 	res := db.Model(&ListMusic).Where("list_id = ?", listID).UpdateColumn(map[string]any{"status": 1}) // 这里的更新，gorm是加了事务的
@@ -73,7 +73,7 @@ func DeleteListMusic(ctx context.Context, listID string) error {
 	return nil
 }
 
-func UpdateMusicList(ctx context.Context, listID string, updateData map[string]any) error {
+func UpdateMusicList(ctx context.Context, listID int64, updateData map[string]any) error {
 	logs.CtxInfo(ctx, "[DB] update music list, musid list id=%v, data=%v", listID, updateData)
 	var musicList model.MusicList
 	res := db.Model(&musicList).Where("list_id = ?", listID).UpdateColumns(updateData)
@@ -85,7 +85,7 @@ func UpdateMusicList(ctx context.Context, listID string, updateData map[string]a
 }
 
 // 获取指定歌单下的音乐id
-func GetMusicFromList(ctx context.Context, listID string, status int32) ([]string, error) {
+func GetMusicFromList(ctx context.Context, listID int64, status int32) ([]string, error) {
 	logs.CtxInfo(ctx, "[DB] get music from music list, list id=%v", listID)
 	var Listmusic []string
 	var err error
@@ -104,10 +104,10 @@ func GetMusicFromList(ctx context.Context, listID string, status int32) ([]strin
 	return Listmusic, nil
 }
 
-func FilterMusicIDUsingIDAndStatus(ctx context.Context, musicIDs []string) ([]string, []string, error) {
+func FilterMusicIDUsingIDAndStatus(ctx context.Context, musicIDs []int64) ([]int64, []int64, error) {
 	logs.CtxInfo(ctx, "[DB] filter music using music id and status, ids=%v", musicIDs)
-	var effectiveMusicIDs []string
-	var invalidMusicIDS []string
+	var effectiveMusicIDs []int64
+	var invalidMusicIDS []int64
 	err := db.Model(&model.Music{}).Where("music_id in ? and status = 0", musicIDs).Pluck("music_id", &effectiveMusicIDs).Error
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to filter music list, err=%v", err)
@@ -128,7 +128,7 @@ func JudgeMusicListWithListID(ctx context.Context, listID string) error {
 	return nil
 }
 
-func AddMusicToList(ctx context.Context, listID string, musicIDs []string) error {
+func AddMusicToList(ctx context.Context, listID int64, musicIDs []int64) error {
 	logs.CtxInfo(ctx, "[DB] add music to music list, list id=%v, music id=%v", listID, musicIDs)
 	/*
 		// 已删除的音乐, 和需要添加的音乐求交集，更新status为1
@@ -167,7 +167,7 @@ func AddMusicToList(ctx context.Context, listID string, musicIDs []string) error
 }
 
 // 批量修改歌单中歌曲的状态
-func BatchUpdateMusicStatus(ctx context.Context, listID string, musicIDs []string, status int32) error {
+func BatchUpdateMusicStatus(ctx context.Context, listID int64, musicIDs []int64, status int32) error {
 	logs.CtxInfo(ctx, "[DB] update the status of music in the music list, music id in %v, music list id=%v, status=%v", musicIDs, listID, status)
 	ListMusic := model.ListMusic{}
 	err := db.Model(&ListMusic).Where("list_id = ? and music_id IN ?", listID, musicIDs).UpdateColumn(map[string]any{"status": status}).Error
@@ -178,9 +178,9 @@ func BatchUpdateMusicStatus(ctx context.Context, listID string, musicIDs []strin
 	return nil
 }
 
-func GetListWithUserID(ctx context.Context, userID string) ([]string, error) {
+func GetListWithUserID(ctx context.Context, userID int64) ([]int64, error) {
 	logs.CtxInfo(ctx, "[DB] get list id with user id, user id=%v", userID)
-	var lists []string
+	var lists []int64
 	err := db.Model(&model.MusicList{}).Where("user_id = ?", userID).Pluck("list_id", &lists).Error
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to get list with user id, err=%v", err)
@@ -189,7 +189,7 @@ func GetListWithUserID(ctx context.Context, userID string) ([]string, error) {
 	return lists, nil
 }
 //TODO：不同的表的update是不是也可以抽象到一起？
-func DeleteMusicFromList(ctx context.Context, musicID string) error {
+func DeleteMusicFromList(ctx context.Context, musicID int64) error {
 	logs.CtxInfo(ctx, "[DB] delete music from music list, music id=%v", musicID)
 	err := db.Model(&model.ListMusic{}).Where("music_id = ?", musicID).Update("status", 1).Error
 	if err != nil {

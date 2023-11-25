@@ -33,14 +33,14 @@ func RemoveString(slice []string, target string) []string {
 }
 
 // A中存在，B中不存在的
-func FilterItem(A, B []string) []string {
-	existingEl := make(map[string]bool)
+func FilterItem[T comparable](A, B []T) []T {
+	existingEl := make(map[T]bool)
 
 	for _, el := range B {
 		existingEl[el] = true
 	}
 
-	var nonExistingEl []string
+	var nonExistingEl []T
 
 	for _, el := range A {
 		if !existingEl[el] {

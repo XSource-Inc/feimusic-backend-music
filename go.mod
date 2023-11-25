@@ -4,10 +4,11 @@ go 1.18
 
 require (
 	github.com/Kidsunbo/kie_toolbox_go/logs v0.0.0-20230812175704-5e8195de1111
-	github.com/XSource-Inc/grpc_idl/go v0.0.0-20231115040412-ab2e5ddd4fcc
+	github.com/XSource-Inc/grpc_idl/go v0.0.0-20231125074921-71f1dfacdd88
 	github.com/go-sql-driver/mysql v1.7.1
-	github.com/jinzhu/gorm v1.24.6
+	github.com/jinzhu/gorm v1.9.16
 	google.golang.org/grpc v1.58.1
+	gorm.io/gorm v1.25.5
 )
 
 require (

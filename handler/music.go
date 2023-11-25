@@ -1,7 +1,5 @@
 package handler
 
-// 就看这个music的接口
-// 1、先看add
 import (
 	"context"
 	"errors"
@@ -16,8 +14,6 @@ import (
 	"github.com/XSource-Inc/grpc_idl/go/proto_gen/fei_music/music"
 	"gorm.io/gorm"
 )
-
-// TODO:需要学习如何加监控和追踪（已有，但是处理的感觉不太好）
 
 type FeiMusicMusic struct {
 	music.UnimplementedFeiMusicMusicServer
@@ -45,11 +41,10 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 	resp := &music.AddMusicResponse{}
 
 	// 音乐数据构造
-	userID := req.UserId
-	if len(userID) == 0 {
+	if req.UserId == 0 {
 		logs.CtxWarn(ctx, "failed to add music, because the user id was not obtained")
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "新增歌曲失败"}
-		return resp, nil  // 这里都写nil,error还有什么意义
+		return resp, nil
 	}
 
 	sort.Strings(req.Artist)
@@ -74,7 +69,7 @@ func (m *FeiMusicMusic) AddMusic(ctx context.Context, req *music.AddMusicRequest
 		Artist:    artist,
 		Album:     req.Album,
 		Tags:      tags,
-		UserID:    userID,
+		UserID:    req.UserId,
 		Status:    0,
 	}
 
@@ -124,15 +119,14 @@ func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicR
 	resp := &music.DeleteMusicResponse{}
 
 	//判断是否有删除权限，目前处理成仅可删除本人上传的音乐
-	userID := req.UserId
-	if len(userID) == 0 {
+	if req.UserId == 0 {
 		logs.CtxWarn(ctx, "failed to delete music, because the user id was not obtained")
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌曲失败"}
 		return resp, errors.New("missing user id")
 	}
 
 	//处理成软删除
-	err := db.DeleteMusicWithID(ctx, req.MusicId, userID)
+	err := db.DeleteMusicWithID(ctx, req.MusicId, req.UserId)
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to delete music, err=%v", err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除音乐失败"}
@@ -278,7 +272,7 @@ func (m *FeiMusicMusic) SearchMusic(ctx context.Context, req *music.SearchMusicR
 	return resp, nil
 }
 
-//TODO:还差个音乐资源
+// TODO:还差个音乐资源
 func (m *FeiMusicMusic) GetMusic(ctx context.Context, req *music.GetMusicRequest) (*music.GetMusicResponse, error) {
 	resp := &music.GetMusicResponse{}
 
@@ -306,7 +300,7 @@ func (m *FeiMusicMusic) GetMusic(ctx context.Context, req *music.GetMusicRequest
 	resp.MusicId = music.MusicID
 	resp.MusicName = music.MusicName
 	resp.Artist = artist
-	resp.Album = *music.Album
+	resp.Album = music.Album
 	resp.Tags = tags
 	resp.UserId = music.UserID
 
