@@ -17,43 +17,61 @@ import (
 type FeiMusicMusicList struct {
 	music.UnimplementedFeiMusicMusicServer
 }
+const (
+	success = 1
+)
 
+// TODO:重要逻辑缺陷，创建歌单时，应先检查对应的歌单是否在表中存在，存在直接修改状态，不存在再新建。或者有别的更合适的方案吗？
 func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.CreateMusicListRequest) (*music.CreateMusicListResponse, error) {
 	resp := &music.CreateMusicListResponse{}
 
+	// 参数校验
+	// TODO: user_id有效性的校验
 	if in.UserId == 0 {
 		logs.CtxWarn(ctx, "failed to create music list, because the user id was not obtained")
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
-		return resp, errors.New("missing user id")
-	}
-
-	dupl, _, err := db.IsDuplicateMusicList(ctx, in.ListName, in.UserId)
-	if err != nil {
-		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
-		return resp, err
-	}
-
-	if dupl {
-		logs.CtxWarn(ctx, "failed to create music list, duplicate music list name")
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "该歌单已存在，请确认"}
 		return resp, nil
 	}
-	tags := strings.Join(in.Tags, ",")
+	
+	if len(in.ListName) > 500 {
+		logs.CtxWarn(ctx, "failed to add music list, because music list name is too log")
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单名超长，请检查"}
+		return resp, nil
+	}
 
+	if len(*in.ListComment) > 1000 {
+		logs.CtxWarn(ctx, "failed to add music list, because music list comment is too log")
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单简介超长，请检查"}
+		return resp, nil
+	}
+
+	tags := strings.Join(in.Tags, ",")
+	if len(tags) > 300 {
+		logs.CtxWarn(ctx, "failed to add music list, because tags is too log")
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单风格超长，请检查"}
+		return resp, nil
+	}
+
+	// 添加歌单记录
 	newMusicList := &model.MusicList{
 		ListName:    in.ListName,
 		ListComment: in.ListComment,
 		Tags:        tags,
 		UserID:      in.UserId,
-		Status:      1,
+		Status:      success,
 	}
 
 	listID, err := db.CreateMusicList(ctx, newMusicList)
 	if err != nil {
-		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
-		return resp, nil
+		if err == gorm.ErrDuplicatedKey {
+			logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单重复，请确认后重新添加"}
+			return resp, nil
+		} else {
+			logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
+			return resp, nil
+		}
 	}
 
 	resp.ListId = listID
@@ -67,42 +85,38 @@ func (ml *FeiMusicMusicList) DeleteMusicList(ctx context.Context, in *music.Dele
 	if in.UserId == 0 {
 		logs.CtxWarn(ctx, "failed to delete music list, because the user id was not obtained")
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
-		return resp, errors.New("missing user id")
+		return resp, nil
 	}
 
-	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
-	if err != nil {
+	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
+
+		// 软删除,指定歌单id和归属用户id
+		err := db.DeleteMusicList(ctx, tx, in.ListId, in.UserId)
+		if err != nil {
+			logs.CtxWarn(ctx, "failed to delete music list, list id=%v, user id=%v, err=%v", in.ListId, in.UserId, err)
+			return err
+		}
+
+		// 软删除-删除歌单下歌曲
+		err = db.DeleteListMusic(ctx, tx, in.ListId) 
+		if err != nil {
+			logs.CtxWarn(ctx, "failed to delete songs from list, listid=%v, err=%v", in.ListId, err)
+			return err
+		}
+		return nil
+	})
+	// TODO:使用事务之后，对于错误信息的把控精度变低了
+	if err != nil{
 		if err == gorm.ErrRecordNotFound {
-			logs.CtxWarn(ctx, "failed to delete music list, list id=%v, err=%v", in.ListId, err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要删除的歌单不存在,请确认"}
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要删除的歌单不存在，请确认"}
 			return resp, nil
 		} else {
-			logs.CtxWarn(ctx, "failed to delete music list, list id=%v, err=%v", in.ListId, err)
+			logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
 			return resp, nil
 		}
 	}
-
-	if userIDFromTable != in.UserId {
-		logs.CtxWarn(ctx, "the music_list does not belong to the operator, No permission to delete")
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有删除权限"}
-		return resp, nil
-	}
-	// 软删除-歌单
-	err = db.DeleteMusicList(ctx, in.ListId)
-	if err != nil {
-		logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单失败"}
-		return resp, nil
-	}
-
-	// 软删除-删除歌单下歌曲
-	err = db.DeleteListMusic(ctx, in.ListId) // 后续可以增加删除歌曲的数量
-	if err != nil {
-		logs.CtxWarn(ctx, "failed to delete music list, listid=%v, err=%v", in.ListId, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单下歌曲失败"} // 这里返回给用户这个信息貌似是无用的
-		return resp, nil
-	}
+	
 	return resp, nil
 }
 

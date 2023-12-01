@@ -15,6 +15,7 @@ type MusicList struct {
 	UpdatedAt   time.Time `grom:"updateat"`
 	DeletedAt   time.Time `grom:"deleteat"`
 }
+// ListName+UserId, 需要一个唯一约束
 
 type ListMusic struct {
 	ListID    int64    `gorm:"primary_key"`

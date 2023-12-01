@@ -9,24 +9,24 @@ import (
 	"gorm.io/gorm"
 )
 
-func IsDuplicateMusicList(ctx context.Context, listName string, userID int64) (bool, int64, error) {
-	logs.CtxInfo(ctx, "[DB] determine if the song title is duplicated, list name=%v, user=%v", listName, userID)
-	musicList := &model.MusicList{}
-	err := db.Table("music_list").Where("list_name = ? and user_id = ?", listName, userID).First(&musicList).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return false, 0, nil
-		} else {
-			logs.CtxWarn(ctx, "failed to get music list, err=%v", err)
-			return false, 0, err
-		}
-	}
+// func IsDuplicateMusicList(ctx context.Context, listName string, userID int64) (bool, int64, error) {
+// 	logs.CtxInfo(ctx, "[DB] determine if the song title is duplicated, list name=%v, user=%v", listName, userID)
+// 	musicList := &model.MusicList{}
+// 	err := db.Table("music_list").Where("list_name = ? and user_id = ?", listName, userID).First(&musicList).Error
+// 	if err != nil {
+// 		if err == gorm.ErrRecordNotFound {
+// 			return false, 0, nil
+// 		} else {
+// 			logs.CtxWarn(ctx, "failed to get music list, err=%v", err)
+// 			return false, 0, err
+// 		}
+// 	}
 
-	if musicList.ListID != 0 {
-		return true, musicList.ListID, nil
-	}
-	return false, 0, nil
-}
+// 	if musicList.ListID != 0 {
+// 		return true, musicList.ListID, nil
+// 	}
+// 	return false, 0, nil
+// }
 
 func CreateMusicList(ctx context.Context, newMusicList *model.MusicList) (int64, error) {
 	logs.CtxInfo(ctx, "[DB] create music list, data=%v", newMusicList)
@@ -38,22 +38,22 @@ func CreateMusicList(ctx context.Context, newMusicList *model.MusicList) (int64,
 	return newMusicList.ListID, nil
 }
 
-func GetUserIDWithListID(ctx context.Context, listID int64) (int64, error) {
-	logs.CtxInfo(ctx, "[DB] get user id with music list id, list id=%v", listID)
-	musicList := model.MusicList{ListID: listID}
-	res := db.First(&musicList)
-	if res.Error != nil {
-		logs.CtxWarn(ctx, "failed to get user id of music list, err=%v", res.Error)
-		return 0, res.Error
-	}
-	return musicList.UserID, nil
-}
+// func GetUserIDWithListID(ctx context.Context, listID int64) (int64, error) {
+// 	logs.CtxInfo(ctx, "[DB] get user id with music list id, list id=%v", listID)
+// 	musicList := model.MusicList{ListID: listID}
+// 	res := db.First(&musicList)
+// 	if res.Error != nil {
+// 		logs.CtxWarn(ctx, "failed to get user id of music list, err=%v", res.Error)
+// 		return 0, res.Error
+// 	}
+// 	return musicList.UserID, nil
+// }
 
 // 删除歌单
-func DeleteMusicList(ctx context.Context, listID int64) error {
+func DeleteMusicList(ctx context.Context, tx *gorm.DB, listID, userID int64) error {
 	logs.CtxInfo(ctx, "[DB] delete music list, list id=%v", listID)
 	musicList := model.MusicList{}
-	res := db.Model(&musicList).Where("list_id = ?", listID).UpdateColumns(map[string]any{"status": 1})
+	res := tx.Model(&musicList).Where("list_id = ? and user_id = ?", listID, userID).UpdateColumns(map[string]any{"status": 1})
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music list, err=%v", res.Error)
 		return res.Error
@@ -62,10 +62,10 @@ func DeleteMusicList(ctx context.Context, listID int64) error {
 }
 
 // 删除歌单下音乐
-func DeleteListMusic(ctx context.Context, listID int64) error {
+func DeleteListMusic(ctx context.Context, tx *gorm.DB, listID int64) error {
 	logs.CtxInfo(ctx, "[DB] delete music from specified music list, list id=%v", listID)
 	ListMusic := model.ListMusic{}
-	res := db.Model(&ListMusic).Where("list_id = ?", listID).UpdateColumns(map[string]any{"status": 1}) // 这里的更新，gorm是加了事务的
+	res := tx.Model(&ListMusic).Where("list_id = ?", listID).UpdateColumns(map[string]any{"status": 1})
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to delete music from specified music list, err=%v", res.Error)
 		return res.Error

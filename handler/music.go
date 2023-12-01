@@ -77,7 +77,7 @@ func (m *FeiMusicMusic) MusicDelete(ctx context.Context, req *music.DeleteMusicR
 	if req.UserId == 0 {
 		logs.CtxWarn(ctx, "failed to delete music, because the user id was not obtained")
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌曲失败"}
-		return resp, errors.New("missing user id")
+		return resp, nil
 	}
 
 	// 判断是否有删除权限，目前实现：仅支持删除本人上传的音乐
@@ -125,7 +125,7 @@ func (m *FeiMusicMusic) UpdateMusic(ctx context.Context, req *music.UpdateMusicR
 	if req.UserId == 0 {
 		logs.CtxWarn(ctx, "failed to update music, because the user id was not obtained")
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌曲失败"}
-		return resp, errors.New("missing user id")
+		return resp, nil
 	}
 
 	// 判断是否有更新权限，目前实现：仅支持更新本人上传的音乐
