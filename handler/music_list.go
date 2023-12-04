@@ -17,22 +17,28 @@ import (
 type FeiMusicMusicList struct {
 	music.UnimplementedFeiMusicMusicServer
 }
+
 const (
-	success = 1
+	success = 0
+)
+
+const (
+	normal = 0
+	delete = 1
 )
 
 // TODO:重要逻辑缺陷，创建歌单时，应先检查对应的歌单是否在表中存在，存在直接修改状态，不存在再新建。或者有别的更合适的方案吗？
 func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.CreateMusicListRequest) (*music.CreateMusicListResponse, error) {
 	resp := &music.CreateMusicListResponse{}
 
-	// 参数校验
+	// 1、参数校验
 	// TODO: user_id有效性的校验
 	if in.UserId == 0 {
 		logs.CtxWarn(ctx, "failed to create music list, because the user id was not obtained")
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 		return resp, nil
 	}
-	
+
 	if len(in.ListName) > 500 {
 		logs.CtxWarn(ctx, "failed to add music list, because music list name is too log")
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单名超长，请检查"}
@@ -52,29 +58,61 @@ func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.Crea
 		return resp, nil
 	}
 
-	// 添加歌单记录
-	newMusicList := &model.MusicList{
-		ListName:    in.ListName,
-		ListComment: in.ListComment,
-		Tags:        tags,
-		UserID:      in.UserId,
-		Status:      success,
-	}
+	// 开启事务，创建歌单
+	err := db.GetDB().Transaction(func(tx *gorm.DB) error { 
+		// 2、判断是否是已存在的歌单
+		isExist, listID, status, err := db.JudgeList(ctx, tx, in.ListName, in.UserId)
+		if err != nil {
+			logs.CtxWarn(ctx, "failed to create music list, list name=%v, user id=%v, err=%v", in.ListName, in.UserId, err)
+			return err
+		}
+		
+		if isExist {
+			// 3、已存在
+			if status != delete {
+				logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
+				return gorm.ErrDuplicatedKey
+			} else {
+				err = db.UpdateListStatus(ctx, tx, listID, in.UserId, normal)
+				if err != nil {
+					logs.CtxWarn(ctx, "failed to create music list, list name=%v, user id=%v, err=%v", in.ListName, in.UserId, err)
+					return err
+				}
+				resp.ListId = listID
+				return nil
+			}	
+		} else {
+			// 4、不是已删除歌单，正常创建
+			newMusicList := &model.MusicList{
+				ListName:    in.ListName,
+				ListComment: in.ListComment,
+				Tags:        tags,
+				UserID:      in.UserId,
+				Status:      success,
+			}
 
-	listID, err := db.CreateMusicList(ctx, newMusicList)
+			listID, err = db.CreateMusicList(ctx, tx, newMusicList)
+			if err != nil {
+				logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
+				return err
+			} 
+			resp.ListId = listID
+			return nil
+		}
+	})
+
 	if err != nil {
 		if err == gorm.ErrDuplicatedKey {
 			logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单重复，请确认后重新添加"}
 			return resp, nil
 		} else {
-			logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
+			logs.CtxWarn(ctx, "failed to create music list, list name=%v, user id=%v, err=%v", in.ListName, in.UserId, err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "创建歌单失败"}
 			return resp, nil
 		}
 	}
 
-	resp.ListId = listID
 	return resp, nil
 }
 
@@ -91,14 +129,14 @@ func (ml *FeiMusicMusicList) DeleteMusicList(ctx context.Context, in *music.Dele
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
 
 		// 软删除,指定歌单id和归属用户id
-		err := db.DeleteMusicList(ctx, tx, in.ListId, in.UserId)
+		err := db.UpdateListStatus(ctx, tx, in.ListId, in.UserId, delete)
 		if err != nil {
 			logs.CtxWarn(ctx, "failed to delete music list, list id=%v, user id=%v, err=%v", in.ListId, in.UserId, err)
 			return err
 		}
 
 		// 软删除-删除歌单下歌曲
-		err = db.DeleteListMusic(ctx, tx, in.ListId) 
+		err = db.DeleteListMusic(ctx, tx, in.ListId)
 		if err != nil {
 			logs.CtxWarn(ctx, "failed to delete songs from list, listid=%v, err=%v", in.ListId, err)
 			return err
@@ -106,7 +144,7 @@ func (ml *FeiMusicMusicList) DeleteMusicList(ctx context.Context, in *music.Dele
 		return nil
 	})
 	// TODO:使用事务之后，对于错误信息的把控精度变低了
-	if err != nil{
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要删除的歌单不存在，请确认"}
 			return resp, nil
@@ -116,73 +154,40 @@ func (ml *FeiMusicMusicList) DeleteMusicList(ctx context.Context, in *music.Dele
 			return resp, nil
 		}
 	}
-	
+
 	return resp, nil
 }
 
 func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.UpdateMusicListRequest) (*music.UpdateMusicListResponse, error) {
-	resp := &music.UpdateMusicListResponse{BaseResp: &base.BaseResp{}}
+	resp := &music.UpdateMusicListResponse{}
 
 	if in.UserId == 0 {
 		logs.CtxWarn(ctx, "failed to update music list, because the user id was not obtained")
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌单失败"}
-		return resp, errors.New("missing user id")
-	}
-
-	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			logs.CtxWarn(ctx, "failed to update music list, list id=%v, err=%v", in.ListId, err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要更新的歌单不存在"}
-			return resp, nil
-		} else {
-			logs.CtxWarn(ctx, "failed to update music list, list id=%v, err=%v", in.ListId, err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌单失败"}
-			return resp, nil
-		}
-	}
-
-	if userIDFromTable != in.UserId {
-		logs.CtxWarn(ctx, "the music_list does not belong to the operator, No permission to update")
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有更新权限"}
 		return resp, nil
 	}
 
-	listID := in.ListId
-	// 做变更后的唯一性判断 ==》TODO:把这部分工作改到数据库做
-	if in.ListName != nil {
-		dupl, musicListID, err := db.IsDuplicateMusicList(ctx, *in.ListName, in.UserId)
-		if err != nil {
-			logs.CtxWarn(ctx, "failed to update music list, list id=%v, err=%v", in.ListId, err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "更新歌单失败"}
-			return resp, err
-		}
-
-		if dupl && musicListID != listID {
-			logs.CtxWarn(ctx, "failed to update music list, list id=%v, err=%v", in.ListId, err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "修改后的歌单名与已有歌单名重复，请修改"}
-			return resp, nil
-		}
-	}
-
-	tags := strings.Join(in.Tags, ",")
-
 	updateData := map[string]any{}
+	tags := strings.Join(in.Tags, ",")
 	updateData["tags"] = tags
 	utils.AddToMapIfNotNil(updateData, in.ListName, "listName")
 	utils.AddToMapIfNotNil(updateData, in.ListComment, "listComment")
 
-	err = db.UpdateMusicList(ctx, listID, updateData)
+	err := db.UpdateMusicList(ctx, in.ListId, in.UserId, updateData)
 	if err != nil {
-		logs.CtxWarn(ctx, "failed to update music list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单信息更新失败"}
-		return resp, nil
+		if err == gorm.ErrRecordNotFound {
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "要更新的歌单不存在，请确认"}
+			return resp, nil
+		} else {
+			logs.CtxWarn(ctx, "failed to update music list, err=%v", err)
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单信息更新失败"}
+			return resp, nil
+		}
 	}
 
 	return resp, nil
 }
 
-// TODO:目前没有返回歌单的基础信息,要做成两个接口还是一个接口呢？
 func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.GetMusicFromListRequest) (*music.GetMusicFromListResponse, error) {
 	resp := &music.GetMusicFromListResponse{}
 
@@ -193,9 +198,9 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 		return resp, errors.New("missing user id")
 	}
 
-	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
+	// 获取音乐id
+	musicIDs, err := db.GetMusicFromList(ctx, in.ListId, in.UserId, normal)
 	if err != nil {
-		// 检查歌单是否存在
 		if err == gorm.ErrRecordNotFound {
 			logs.CtxWarn(ctx, "failed to get music from music list, list id=%v, err=%v", in.ListId, err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单不存在"}
@@ -207,39 +212,21 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 		}
 	}
 
-	if userIDFromTable != in.UserId {
-		logs.CtxWarn(ctx, "the music_list does not belong to the operator, No permission to view")
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有查看权限"}
-		return resp, nil
-	}
-
-	// 获取歌单信息
-
-	// 获取音乐信息
-	musicIDs, err := db.GetMusicFromList(ctx, in.ListId, 0) //TODO:创建常量
-	if err != nil {
-		logs.CtxWarn(ctx, "failed to obtain music of music_list, list id=%v, err=%v", in.ListId, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
-		return resp, nil
-	}
 	resp.Total = int64(len(musicIDs))
 	if resp.Total == 0 {
 		return resp, nil
 	}
 
+	// 获取音乐信息
 	musicList, err := db.BatchGetMusicWithMsuicID(ctx, musicIDs)
 	resp.MusicList = musicList
 
-	if err != nil {
+	if err != nil || len(resp.MusicList) == 0 {
 		logs.CtxWarn(ctx, "failed to obtain music of music_list, listid=%v, err=%v", in.ListId, err)
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
 		return resp, nil
 	}
-	if len(resp.MusicList) == 0 {
-		logs.CtxWarn(ctx, "failed to obtain music of music_list, listid=%v, err=%v", in.ListId, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
-		return resp, nil
-	}
+
 	resp.MusicList = musicList
 
 	return resp, nil

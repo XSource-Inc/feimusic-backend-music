@@ -9,28 +9,29 @@ import (
 	"gorm.io/gorm"
 )
 
-// func IsDuplicateMusicList(ctx context.Context, listName string, userID int64) (bool, int64, error) {
-// 	logs.CtxInfo(ctx, "[DB] determine if the song title is duplicated, list name=%v, user=%v", listName, userID)
-// 	musicList := &model.MusicList{}
-// 	err := db.Table("music_list").Where("list_name = ? and user_id = ?", listName, userID).First(&musicList).Error
-// 	if err != nil {
-// 		if err == gorm.ErrRecordNotFound {
-// 			return false, 0, nil
-// 		} else {
-// 			logs.CtxWarn(ctx, "failed to get music list, err=%v", err)
-// 			return false, 0, err
-// 		}
-// 	}
+func JudgeList(ctx context.Context, tx *gorm.DB, listName string, userID int64) (bool, int64, int32, error) {
+	logs.CtxInfo(ctx, "[DB] determine if the song title is deleted, list name=%v, user=%v", listName, userID)
+	musicList := &model.MusicList{}
+	err := tx.Table("music_list").Where("list_name = ? and user_id = ?", listName, userID).First(&musicList).Error
+	
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return false, 0, -1, nil
+		} else {
+			logs.CtxWarn(ctx, "failed to get music list, err=%v", err)
+			return false, 0, -1, err
+		}
+	}
 
-// 	if musicList.ListID != 0 {
-// 		return true, musicList.ListID, nil
-// 	}
-// 	return false, 0, nil
-// }
+	if musicList.ListID != 0 {
+		return true, musicList.ListID, musicList.Status, nil
+	}
+	return false, 0, -1, nil
+}
 
-func CreateMusicList(ctx context.Context, newMusicList *model.MusicList) (int64, error) {
+func CreateMusicList(ctx context.Context, tx *gorm.DB, newMusicList *model.MusicList) (int64, error) {
 	logs.CtxInfo(ctx, "[DB] create music list, data=%v", newMusicList)
-	err := db.Create(newMusicList).Error
+	err := tx.Create(newMusicList).Error
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to create music list, err=%v", err)
 		return 0, err
@@ -49,13 +50,13 @@ func CreateMusicList(ctx context.Context, newMusicList *model.MusicList) (int64,
 // 	return musicList.UserID, nil
 // }
 
-// 删除歌单
-func DeleteMusicList(ctx context.Context, tx *gorm.DB, listID, userID int64) error {
-	logs.CtxInfo(ctx, "[DB] delete music list, list id=%v", listID)
+// 更新歌单状态
+func UpdateListStatus(ctx context.Context, tx *gorm.DB, listID, userID int64, status int32) error {
+	logs.CtxInfo(ctx, "[DB] update music list, list id=%v, status = %v", listID, status)
 	musicList := model.MusicList{}
-	res := tx.Model(&musicList).Where("list_id = ? and user_id = ?", listID, userID).UpdateColumns(map[string]any{"status": 1})
+	res := tx.Model(&musicList).Where("list_id = ? and user_id = ?", listID, userID).UpdateColumns(map[string]any{"status": status})
 	if res.Error != nil {
-		logs.CtxWarn(ctx, "failed to delete music list, err=%v", res.Error)
+		logs.CtxWarn(ctx, "failed to update music list, err=%v", res.Error)
 		return res.Error
 	}
 	return nil
@@ -73,10 +74,10 @@ func DeleteListMusic(ctx context.Context, tx *gorm.DB, listID int64) error {
 	return nil
 }
 
-func UpdateMusicList(ctx context.Context, listID int64, updateData map[string]any) error {
+func UpdateMusicList(ctx context.Context, listID, userID int64, updateData map[string]any) error {
 	logs.CtxInfo(ctx, "[DB] update music list, musid list id=%v, data=%v", listID, updateData)
 	var musicList model.MusicList
-	res := db.Model(&musicList).Where("list_id = ?", listID).UpdateColumns(updateData)
+	res := db.Model(&musicList).Where("list_id = ? and user_id = ?", listID, userID).UpdateColumns(updateData)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to update music list, err=%v", res.Error)
 		return res.Error
@@ -85,15 +86,15 @@ func UpdateMusicList(ctx context.Context, listID int64, updateData map[string]an
 }
 
 // 获取指定歌单下的音乐id
-func GetMusicFromList(ctx context.Context, listID int64, status int32) ([]string, error) {
+func GetMusicFromList(ctx context.Context, listID, userID int64, status int32) ([]string, error) {
 	logs.CtxInfo(ctx, "[DB] get music from music list, list id=%v", listID)
 	var Listmusic []string
 	var err error
 	// 不限制状态时，status传入-1，限制时，status传入指定状态
 	if status == -1 {
-		err = db.Model(&model.ListMusic{}).Where("list_id = ?", listID).Pluck("music_id", &Listmusic).Error
+		err = db.Model(&model.ListMusic{}).Where("list_id = ? and user = ?", listID, userID).Pluck("music_id", &Listmusic).Error
 	} else {
-		err = db.Model(&model.ListMusic{}).Where("list_id = ? and status = ?", listID, status).Pluck("music_id", &Listmusic).Error
+		err = db.Model(&model.ListMusic{}).Where("list_id = ? and user = ? and status = ?", listID, userID, status).Pluck("music_id", &Listmusic).Error
 	}
 
 	if err != nil {

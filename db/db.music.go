@@ -66,15 +66,19 @@ func BatchGetMusicWithMsuicID(ctx context.Context, musicIDs []string) ([]*music.
 	var artist, tags []string
 
 	for _, m := range songs {
+
+		var musicItem *music.MusicItem
+
 		artist = strings.Split(m.Artist, ",")
 		tags = strings.Split(m.Tags, ",")
-		var musicItem *music.MusicItem
+		
 		musicItem.MusicId = m.MusicID
 		musicItem.MusicName = m.MusicName
 		musicItem.Artist = artist
 		musicItem.Album = m.Album
 		musicItem.Tags = tags
 		musicItem.UserId = m.UserID
+		
 		musicList = append(musicList, musicItem)
 	}
 	return musicList, nil
