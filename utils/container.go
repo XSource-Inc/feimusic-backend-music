@@ -50,10 +50,10 @@ func FilterItem[T comparable](A, B []T) []T {
 	return nonExistingEl
 }
 
-
-func Intersection(A, B []string) []string{
-	AEl := make(map[string]bool)
-	BEl := make(map[string]bool)
+// A、B的交集
+func Intersection(A, B []int64) []int64{
+	AEl := make(map[int64]bool)
+	BEl := make(map[int64]bool)
 
 	for _, el := range A{
 		AEl[el] = true
@@ -62,7 +62,7 @@ func Intersection(A, B []string) []string{
 		BEl[el] = true
 	}
 
-	innerEl := []string{}
+	innerEl := []int64{}
 
 	for el := range AEl{
 		if ok := BEl[el]; ok{

@@ -61,7 +61,7 @@ func (ml *FeiMusicMusicList) CreateMusicList(ctx context.Context, in *music.Crea
 	// 开启事务，创建歌单
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error { 
 		// 2、判断是否是已存在的歌单
-		isExist, listID, status, err := db.JudgeList(ctx, tx, in.ListName, in.UserId)
+		isExist, listID, status, err := db.JudgeListWithListName(ctx, tx, in.ListName, in.UserId)
 		if err != nil {
 			logs.CtxWarn(ctx, "failed to create music list, list name=%v, user id=%v, err=%v", in.ListName, in.UserId, err)
 			return err
@@ -173,6 +173,7 @@ func (ml *FeiMusicMusicList) UpdateMusicList(ctx context.Context, in *music.Upda
 	utils.AddToMapIfNotNil(updateData, in.ListName, "listName")
 	utils.AddToMapIfNotNil(updateData, in.ListComment, "listComment")
 
+	// 目前只支持更新status=0的歌单
 	err := db.UpdateMusicList(ctx, in.ListId, in.UserId, updateData)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -197,19 +198,20 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
 		return resp, errors.New("missing user id")
 	}
-
+	//TODO：有必要加事务吗？
+	// 判断歌单是否normal
+	err := db.JudgeListWithListID(ctx, db.GetDB(), in.ListId, in.UserId, normal)
+	if err == gorm.ErrRecordNotFound {
+		logs.CtxWarn(ctx, "failed to get music from music list, list id=%v, err=%v", in.ListId, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单不存在"}
+		return resp, nil
+	}
 	// 获取音乐id
-	musicIDs, err := db.GetMusicFromList(ctx, in.ListId, in.UserId, normal)
+	musicIDs, err := db.GetMusicFromList(ctx, in.ListId, normal)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			logs.CtxWarn(ctx, "failed to get music from music list, list id=%v, err=%v", in.ListId, err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单不存在"}
-			return resp, nil
-		} else {
-			logs.CtxWarn(ctx, "failed to get music from music list, list id=%v, err=%v", in.ListId, err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
-			return resp, nil
-		}
+		logs.CtxWarn(ctx, "failed to get music from music list, list id=%v, err=%v", in.ListId, err)
+		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "获取歌单音乐失败"}
+		return resp, nil
 	}
 
 	resp.Total = int64(len(musicIDs))
@@ -235,7 +237,6 @@ func (ml *FeiMusicMusicList) GetMusicFromList(ctx context.Context, in *music.Get
 func (ml *FeiMusicMusicList) AddMusicToList(ctx context.Context, in *music.AddMusicToListRequest) (*music.AddMusicToListResponse, error) {
 	resp := &music.AddMusicToListResponse{}
 
-	// TODO：加事务？进一步，还有哪里需要加事务吗
 
 	// 鉴权，看请求的歌单是否归属当前登陆人
 	if in.UserId == 0 {
@@ -244,51 +245,51 @@ func (ml *FeiMusicMusicList) AddMusicToList(ctx context.Context, in *music.AddMu
 		return resp, errors.New("missing user id")
 	}
 
-	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
+	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
+		err := db.JudgeListWithListID(ctx, tx, in.ListId, in.UserId, normal)
+		if err != nil {
+			logs.CtxWarn(ctx, "failed to add music to the list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
+			return err
+		}
+
+		// 筛选出入参中有效状态的音乐
+		effectiveMusicIDs, invalidMusicIDs, err := db.FilterMusicIDUsingIDAndStatus(ctx, tx, in.MusicIds)
+
+		if err != nil {
+			logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
+			return err
+		}
+
+		if len(effectiveMusicIDs) == 0 {
+			logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
+			return gorm.ErrRecordNotFound
+		}
+
+		if len(invalidMusicIDs) > 0 {
+			// 如果指定添加的字段中存在无效的音乐id，目前只在日志中做了记录
+			logs.CtxWarn(ctx, "there is invalid music in the specified added music, music id=%v", invalidMusicIDs)
+		}
+
+		// 使用save保存歌单下音乐，主键冲突会修改字段
+		err = db.AddMusicToList(ctx, tx, in.ListId, effectiveMusicIDs)
+		if err != nil {
+			logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
+			return err
+		}
+
+		return nil
+	})
+	
 	if err != nil {
-		// 检查入参中的歌单是否存在
 		if err == gorm.ErrRecordNotFound {
 			logs.CtxWarn(ctx, "failed to add music to the list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单不存在"}
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单或音乐不存在"}
 			return resp, nil
 		} else {
 			logs.CtxWarn(ctx, "failed to add music to the list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
 			return resp, nil
 		}
-	}
-
-	if userIDFromTable != in.UserId {
-		logs.CtxWarn(ctx, "No permission to add music to this music_list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有添加权限"}
-		return resp, nil
-	}
-
-	// 筛选出入参中有效状态的音乐
-	effectiveMusicIDs, invalidMusicIDs, err := db.FilterMusicIDUsingIDAndStatus(ctx, in.MusicIds)
-
-	if err != nil {
-		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
-		return resp, nil
-	}
-
-	if len(effectiveMusicIDs) == 0 {
-		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "指定添加的音乐均不存在"}
-		return resp, nil
-	}
-
-	if len(invalidMusicIDs) > 0 {
-		// 如果指定添加的字段中存在无效的音乐id，目前只在日志中做了记录
-		logs.CtxWarn(ctx, "there is invalid music in the specified added music, music id=%v", invalidMusicIDs)
-	}
-
-	err = db.AddMusicToList(ctx, in.ListId, effectiveMusicIDs)
-	if err != nil {
-		logs.CtxWarn(ctx, "failed to add music to music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "向歌单中添加音乐失败"}
-		return resp, nil
 	}
 
 	return resp, nil
@@ -304,32 +305,32 @@ func (ml *FeiMusicMusicList) RemoveMusicFromList(ctx context.Context, in *music.
 		return resp, errors.New("missing user id")
 	}
 
-	userIDFromTable, err := db.GetUserIDWithListID(ctx, in.ListId)
+	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
+		err := db.JudgeListWithListID(ctx, tx, in.ListId, in.UserId, normal)
+		if err != nil {
+			logs.CtxWarn(ctx, "failed to add music to the list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
+			return err
+		}
+
+		// 软删除
+		err = db.BatchUpdateMusicStatus(ctx, tx, in.ListId, in.MusicIds, delete)
+		if err != nil {
+			logs.CtxWarn(ctx, "failed to delete music from the music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
+			return err
+		}
+		return nil
+	})
+	
 	if err != nil {
-		// 检查入参中的歌单是否存在
 		if err == gorm.ErrRecordNotFound {
 			logs.CtxWarn(ctx, "failed to delete music form the music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
-			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单不存在"}
+			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "歌单或音乐不存在"}
 			return resp, nil
 		} else {
 			logs.CtxWarn(ctx, "failed to delete music form the music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
 			resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "从歌单中删除音乐失败"}
 			return resp, nil
 		}
-	}
-
-	if userIDFromTable != in.UserId {
-		logs.CtxWarn(ctx, "No permission to delete music from the music_list, err=%v", err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "非本人歌单，没有删除权限"}
-		return resp, nil
-	}
-
-	// 软删除
-	err = db.BatchUpdateMusicStatus(ctx, in.ListId, in.MusicIds, 1)
-	if err != nil {
-		logs.CtxWarn(ctx, "failed to delete music from the music_list, list id=%v, music id=%v, err=%v", in.ListId, in.MusicIds, err)
-		resp.BaseResp = &base.BaseResp{StatusCode: 1, StatusMessage: "删除歌单中指定音乐失败"}
-		return resp, nil
 	}
 
 	return resp, nil

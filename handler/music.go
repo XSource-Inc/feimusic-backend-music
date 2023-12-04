@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/Kidsunbo/kie_toolbox_go/logs"

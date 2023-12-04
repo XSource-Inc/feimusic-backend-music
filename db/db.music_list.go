@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func JudgeList(ctx context.Context, tx *gorm.DB, listName string, userID int64) (bool, int64, int32, error) {
+func JudgeListWithListName(ctx context.Context, tx *gorm.DB, listName string, userID int64) (bool, int64, int32, error) {
 	logs.CtxInfo(ctx, "[DB] determine if the song title is deleted, list name=%v, user=%v", listName, userID)
 	musicList := &model.MusicList{}
 	err := tx.Table("music_list").Where("list_name = ? and user_id = ?", listName, userID).First(&musicList).Error
@@ -28,6 +28,20 @@ func JudgeList(ctx context.Context, tx *gorm.DB, listName string, userID int64) 
 	}
 	return false, 0, -1, nil
 }
+
+func JudgeListWithListID(ctx context.Context, tx *gorm.DB, listID, userID int64, status int32) (error) {
+	logs.CtxInfo(ctx, "[DB] determine if the song title is deleted, list id=%v, user=%v", listID, userID)
+	musicList := &model.MusicList{}
+	err := tx.Table("music_list").Where("list_id = ? and user_id = ? and status = ?", listID, userID, status).First(&musicList).Error
+	
+	if err != nil {
+		logs.CtxWarn(ctx, "failed to get music list, err=%v", err)
+		return err
+	}
+
+	return nil
+}
+
 
 func CreateMusicList(ctx context.Context, tx *gorm.DB, newMusicList *model.MusicList) (int64, error) {
 	logs.CtxInfo(ctx, "[DB] create music list, data=%v", newMusicList)
@@ -77,7 +91,7 @@ func DeleteListMusic(ctx context.Context, tx *gorm.DB, listID int64) error {
 func UpdateMusicList(ctx context.Context, listID, userID int64, updateData map[string]any) error {
 	logs.CtxInfo(ctx, "[DB] update music list, musid list id=%v, data=%v", listID, updateData)
 	var musicList model.MusicList
-	res := db.Model(&musicList).Where("list_id = ? and user_id = ?", listID, userID).UpdateColumns(updateData)
+	res := db.Model(&musicList).Where("list_id = ? and user_id = ? and status = 0", listID, userID).UpdateColumns(updateData)
 	if res.Error != nil {
 		logs.CtxWarn(ctx, "failed to update music list, err=%v", res.Error)
 		return res.Error
@@ -86,15 +100,15 @@ func UpdateMusicList(ctx context.Context, listID, userID int64, updateData map[s
 }
 
 // 获取指定歌单下的音乐id
-func GetMusicFromList(ctx context.Context, listID, userID int64, status int32) ([]string, error) {
+func GetMusicFromList(ctx context.Context, listID int64, status int32) ([]int64, error) {
 	logs.CtxInfo(ctx, "[DB] get music from music list, list id=%v", listID)
-	var Listmusic []string
+	var Listmusic []int64
 	var err error
 	// 不限制状态时，status传入-1，限制时，status传入指定状态
 	if status == -1 {
-		err = db.Model(&model.ListMusic{}).Where("list_id = ? and user = ?", listID, userID).Pluck("music_id", &Listmusic).Error
+		err = db.Model(&model.ListMusic{}).Where("list_id = ?", listID).Pluck("music_id", &Listmusic).Error
 	} else {
-		err = db.Model(&model.ListMusic{}).Where("list_id = ? and user = ? and status = ?", listID, userID, status).Pluck("music_id", &Listmusic).Error
+		err = db.Model(&model.ListMusic{}).Where("list_id = ?  and status = ?", listID, status).Pluck("music_id", &Listmusic).Error
 	}
 
 	if err != nil {
@@ -105,11 +119,11 @@ func GetMusicFromList(ctx context.Context, listID, userID int64, status int32) (
 	return Listmusic, nil
 }
 
-func FilterMusicIDUsingIDAndStatus(ctx context.Context, musicIDs []int64) ([]int64, []int64, error) {
+func FilterMusicIDUsingIDAndStatus(ctx context.Context, tx *gorm.DB, musicIDs []int64) ([]int64, []int64, error) {
 	logs.CtxInfo(ctx, "[DB] filter music using music id and status, ids=%v", musicIDs)
 	var effectiveMusicIDs []int64
 	var invalidMusicIDS []int64
-	err := db.Model(&model.Music{}).Where("music_id in ? and status = 0", musicIDs).Pluck("music_id", &effectiveMusicIDs).Error
+	err := tx.Model(&model.Music{}).Where("music_id in ? and status = 0", musicIDs).Pluck("music_id", &effectiveMusicIDs).Error
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to filter music list, err=%v", err)
 		return effectiveMusicIDs, invalidMusicIDS, err
@@ -129,34 +143,14 @@ func JudgeMusicListWithListID(ctx context.Context, listID string) error {
 	return nil
 }
 
-func AddMusicToList(ctx context.Context, listID int64, musicIDs []int64) error {
+func AddMusicToList(ctx context.Context, tx *gorm.DB, listID int64, musicIDs []int64) error {
 	logs.CtxInfo(ctx, "[DB] add music to music list, list id=%v, music id=%v", listID, musicIDs)
-	/*
-		// 已删除的音乐, 和需要添加的音乐求交集，更新status为1
-		deleteMusicIDs, err := GetMusicFromList(ctx, listID, 1)
-		updateMusicIDs := utils.Intersection(deleteMusicIDs, musicIDs)
-
-		err = BatchUpdateMusicStatus(ctx, listID, updateMusicIDs, 0)
-
-		if err != nil {
-			logs.CtxWarn(ctx, "failed to append music ID to list, err=%v", err) // TODO:这里的处理不太合理，即使发生错误，也要继续后续的添加操作？
-			return err
-		}
-
-		// 正常状态的音乐过滤掉已删除的音乐，得到otherMusicIDs
-		otherMusicIDs := utils.FilterItem(musicIDs, updateMusicIDs)
-
-		// otherMusicIDs直接添加，包括原来已存在和原来不存在的音乐 ==》这里处理的不对，gorm检测到冲突之后会报错
-		var listMusics []model.ListMusic
-		for _, musicID := range otherMusicIDs {
-			listMusics = append(listMusics, model.ListMusic{ListID: listID, MusicID: musicID, Status: 0})
-		}
-		err = db.Model(&model.ListMusic{}).Create(&listMusics).Error
-	*/
+	
 	var listMusics []model.ListMusic
 	for _, musicID := range musicIDs {
 		listMusics = append(listMusics, model.ListMusic{ListID: listID, MusicID: musicID, Status: 0})
 	}
+
 	// 如果数据库中已存在与主键相同的记录，则会更新该记录的其他字段；如果不存在，则插入新记录
 	err := db.Model(&model.ListMusic{}).Save(&listMusics).Error // TODO:save是根据主键来判断的，要给歌单和歌曲字段创建个联合主键
 	if err != nil {
@@ -165,13 +159,36 @@ func AddMusicToList(ctx context.Context, listID int64, musicIDs []int64) error {
 	}
 
 	return nil
+
+	// 使用create要这么写：
+	// // 歌单下已删除的音乐，更新status为1
+	// deleteMusicIDs, err := GetMusicFromList(ctx, listID, 1)
+	// updateMusicIDs := utils.Intersection(deleteMusicIDs, musicIDs)
+
+	// err = BatchUpdateMusicStatus(ctx, listID, updateMusicIDs, 0)
+
+	// if err != nil {
+	// 	logs.CtxWarn(ctx, "failed to append music ID to list, err=%v", err)
+	// 	return err
+	// }
+
+	// 歌单下不存在的音乐，正常添加
+	// otherMusicIDs := utils.FilterItem(musicIDs, updateMusicIDs)
+
+	// var listMusics []model.ListMusic
+	// for _, musicID := range otherMusicIDs {
+	// 	listMusics = append(listMusics, model.ListMusic{ListID: listID, MusicID: musicID, Status: 0})
+	// }
+	// err := db.Model(&model.ListMusic{}).Create(&listMusics).Error
+
+	
 }
 
 // 批量修改歌单中歌曲的状态
-func BatchUpdateMusicStatus(ctx context.Context, listID int64, musicIDs []int64, status int32) error {
+func BatchUpdateMusicStatus(ctx context.Context, tx *gorm.DB, listID int64, musicIDs []int64, status int32) error {
 	logs.CtxInfo(ctx, "[DB] update the status of music in the music list, music id in %v, music list id=%v, status=%v", musicIDs, listID, status)
 	ListMusic := model.ListMusic{}
-	err := db.Model(&ListMusic).Where("list_id = ? and music_id IN ?", listID, musicIDs).UpdateColumns(map[string]any{"status": status}).Error
+	err := tx.Model(&ListMusic).Where("list_id = ? and music_id IN ?", listID, musicIDs).UpdateColumns(map[string]any{"status": status}).Error
 	if err != nil {
 		logs.CtxWarn(ctx, "failed to update music from music list, err=%v", err)
 		return err

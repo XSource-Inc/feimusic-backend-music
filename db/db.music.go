@@ -54,7 +54,7 @@ func GetMusicWithUniqueMusicID(ctx context.Context, musicID int64) (*model.Music
 	return &music, nil
 }
 
-func BatchGetMusicWithMsuicID(ctx context.Context, musicIDs []string) ([]*music.MusicItem, error) {
+func BatchGetMusicWithMsuicID(ctx context.Context, musicIDs []int64) ([]*music.MusicItem, error) {
 	logs.CtxInfo(ctx, "[DB] batch get music with music id, music ids=%v", musicIDs)
 	var songs []model.Music
 	var musicList []*music.MusicItem
@@ -78,7 +78,7 @@ func BatchGetMusicWithMsuicID(ctx context.Context, musicIDs []string) ([]*music.
 		musicItem.Album = m.Album
 		musicItem.Tags = tags
 		musicItem.UserId = m.UserID
-		
+
 		musicList = append(musicList, musicItem)
 	}
 	return musicList, nil
